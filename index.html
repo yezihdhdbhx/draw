@@ -38,16 +38,16 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .grid34{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .grid34 .cell{aspect-ratio:3/4;background:#d8d8dd;border-radius:8px;overflow:hidden;cursor:pointer}
 .grid34 .cell img{width:100%;height:100%;object-fit:cover;background:#d8d8dd;display:block}
+/* 作品图片查看器：按钮固定在图片上方 */
 .img-viewer{background:#d8d8dd;border-radius:12px;padding:10px;margin-bottom:12px;border:1.5px dashed #b0b0b8}
 .img-counter{text-align:center;font-size:12px;color:#666;font-weight:600;margin-bottom:8px}
-/* 大图容器：宽高比由 JS 设置为当前阶段第一张图的比例 */
-.img-big{border-radius:8px;overflow:hidden;background:#cfcfd4;cursor:pointer;margin-bottom:8px;display:block;aspect-ratio:1/1;position:relative}
-.img-big img{width:100%;height:100%;display:block;background:#cfcfd4;object-fit:contain}
-.img-stage-info{background:#fff;border-radius:8px;padding:10px 12px;font-size:12px;color:#666;line-height:1.5;margin-bottom:8px}
-.img-stage-info .note{font-size:13px;color:#333;margin-top:6px;white-space:pre-wrap;word-break:break-word;line-height:1.6}
-.img-nav{display:flex;gap:8px}
+.img-nav{display:flex;gap:8px;margin-bottom:10px}
 .img-nav button{flex:1;border:none;background:#1a1a1a;color:#fff;border-radius:8px;padding:11px 0;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit}
 .img-nav button:disabled{opacity:.3;cursor:default}
+.img-big{border-radius:8px;overflow:hidden;background:#cfcfd4;cursor:pointer;margin-bottom:8px;display:block}
+.img-big img{width:100%;height:auto;display:block;background:#cfcfd4}
+.img-stage-info{background:#fff;border-radius:8px;padding:10px 12px;font-size:12px;color:#666;line-height:1.5}
+.img-stage-info .note{font-size:13px;color:#333;margin-top:6px;white-space:pre-wrap;word-break:break-word;line-height:1.6}
 .grid11{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 .cat-tile{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);cursor:pointer;display:flex;flex-direction:column}
 .cat-tile .thumb{aspect-ratio:1;background:#d8d8dd;overflow:hidden}
@@ -154,7 +154,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 <div id="lightbox" class="lightbox hidden"><img id="lightboxImg"></div>
 <script>
 var DB={categories:[],works:[],checkins:[],checkinLogs:[],plans:[]};
-var state={tab:'collections',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false,stageRatios:{}};
+var state={tab:'collections',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false};
 var view=document.getElementById('view'),titleEl=document.getElementById('title'),backEl=document.getElementById('back'),actionEl=document.getElementById('action');
 
 var idb=null;
@@ -336,7 +336,7 @@ function renderCategoryView(){
 }
 function openWork(id){state.workId=id;state.workImgIdx=0;renderWorkView()}
 
-/* ===== 作品详情：一张大图 + 左右切换，按当前阶段第一张图比例统一显示 ===== */
+/* ===== 作品详情：按钮固定在图片上方，图片按原比例显示 ===== */
 function renderWorkView(){
   var w=DB.works.find(function(x){return x.id===state.workId});
   if(!w){state.workId=null;renderCategoryView();return}
@@ -371,49 +371,23 @@ function renderWorkView(){
     if(state.workImgIdx<0)state.workImgIdx=0;
     if(state.workImgIdx>imgList.length-1)state.workImgIdx=imgList.length-1;
     var cur=imgList[state.workImgIdx];
-    var ratio=state.stageRatios[w.id+'_'+cur.stageIdx]||'1 / 1';
     h+='<div class="img-viewer">';
     h+='<div class="img-counter">'+(state.workImgIdx+1)+' / '+imgList.length+'</div>';
-    h+='<div class="img-big" data-img="'+cur.img+'" id="bigBox" style="aspect-ratio:'+ratio+'"><img src="'+cur.img+'"></div>';
-    h+='<div class="img-stage-info">';
-    h+='阶段 '+(cur.stageIdx+1)+' · 用时 '+fmtDur(cur.dur)+' · 累计 '+fmtDur(cur.cumulative)+(cur.date?' · '+esc(cur.date):'');
-    if(cur.note)h+='<div class="note">'+esc(cur.note)+'</div>';
-    h+='</div>';
+    /* 按钮在图片上方，位置固定 */
     h+='<div class="img-nav">';
     h+='<button id="imgPrev"'+(state.workImgIdx===0?' disabled':'')+'>‹ 上一张</button>';
     h+='<button id="imgNext"'+(state.workImgIdx===imgList.length-1?' disabled':'')+'>下一张 ›</button>';
+    h+='</div>';
+    h+='<div class="img-big" data-img="'+cur.img+'" id="bigBox"><img src="'+cur.img+'"></div>';
+    h+='<div class="img-stage-info">';
+    h+='阶段 '+(cur.stageIdx+1)+' · 用时 '+fmtDur(cur.dur)+' · 累计 '+fmtDur(cur.cumulative)+(cur.date?' · '+esc(cur.date):'');
+    if(cur.note)h+='<div class="note">'+esc(cur.note)+'</div>';
     h+='</div>';
     h+='</div>';
   }else{
     h+='<div class="empty">还没有图片</div>';
   }
   view.innerHTML=h;
-
-  /* 加载当前阶段首图尺寸并缓存 */
-  if(imgList.length){
-    var cur2=imgList[state.workImgIdx];
-    var key=w.id+'_'+cur2.stageIdx;
-    if(!state.stageRatios[key]){
-      var firstImg=(w.stages[cur2.stageIdx].images||[])[0];
-      if(firstImg){
-        var probe=new Image();
-        probe.onload=function(){
-          if(probe.naturalWidth&&probe.naturalHeight){
-            var r=probe.naturalWidth+' / '+probe.naturalHeight;
-            state.stageRatios[key]=r;
-            var box=document.getElementById('bigBox');
-            if(box)box.style.aspectRatio=r;
-          }
-        };
-        probe.src=firstImg;
-        if(probe.complete&&probe.naturalWidth){
-          state.stageRatios[key]=probe.naturalWidth+' / '+probe.naturalHeight;
-          var box2=document.getElementById('bigBox');
-          if(box2)box2.style.aspectRatio=state.stageRatios[key];
-        }
-      }
-    }
-  }
 
   var bigBox=document.getElementById('bigBox');
   if(bigBox)bigBox.onclick=function(){showImg(bigBox.dataset.img)};
@@ -527,7 +501,6 @@ function addWorkModal(work,category){
         for(var i=idx;i<work.stages.length;i++){
           work.stages[i].cumulative=(work.stages[i].cumulative||0)-removedDur;
         }
-        delete state.stageRatios[work.id+'_'+idx];
         idbPut('works',work).then(function(){
           toast('阶段已删除');
           closeModal();
@@ -568,7 +541,6 @@ function addWorkModal(work,category){
             newImages.push(d);done++;
             if(done===newFiles.length){
               work.stages.push({images:newImages,cumulative:cum,date:date,note:snote});
-              delete state.stageRatios[work.id+'_'+(work.stages.length-1)];
               idbPut('works',work).then(function(){closeModal();toast('已保存');renderWorkView();});
             }
           });
