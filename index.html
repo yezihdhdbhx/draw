@@ -38,14 +38,16 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .grid34{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .grid34 .cell{aspect-ratio:3/4;background:#d8d8dd;border-radius:8px;overflow:hidden;cursor:pointer}
 .grid34 .cell img{width:100%;height:100%;object-fit:cover;background:#d8d8dd;display:block}
-.img-seq{background:#d8d8dd;border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:12px;margin-bottom:12px;border:1.5px dashed #b0b0b8}
-/* 作品阶段图片：原图比例显示，不裁剪 */
-.stage-group-block{background:#fff;border-radius:10px;padding:10px}
-.stage-group-label{font-size:12px;color:#666;font-weight:500;margin-bottom:4px;line-height:1.5}
-.stage-group-note{font-size:13px;color:#333;background:#f7f8fa;border-radius:6px;padding:6px 10px;margin-bottom:8px;white-space:pre-wrap;word-break:break-word;line-height:1.5}
-.stage-group-imgs{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;align-items:start}
-.stage-group-imgs .cell{background:#d8d8dd;border-radius:8px;overflow:hidden;cursor:pointer}
-.stage-group-imgs .cell img{width:100%;height:auto;display:block;object-fit:contain;background:#d8d8dd}
+/* 作品图片查看器：一次一张大图，左右切换 */
+.img-viewer{background:#d8d8dd;border-radius:12px;padding:10px;margin-bottom:12px;border:1.5px dashed #b0b0b8}
+.img-counter{text-align:center;font-size:12px;color:#666;font-weight:600;margin-bottom:8px}
+.img-big{border-radius:8px;overflow:hidden;background:#cfcfd4;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;justify-content:center;min-height:120px}
+.img-big img{width:100%;height:auto;display:block;background:#cfcfd4}
+.img-stage-info{background:#fff;border-radius:8px;padding:10px 12px;font-size:12px;color:#666;line-height:1.5;margin-bottom:8px}
+.img-stage-info .note{font-size:13px;color:#333;margin-top:6px;white-space:pre-wrap;word-break:break-word;line-height:1.6}
+.img-nav{display:flex;gap:8px}
+.img-nav button{flex:1;border:none;background:#1a1a1a;color:#fff;border-radius:8px;padding:11px 0;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit}
+.img-nav button:disabled{opacity:.3;cursor:default}
 .grid11{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 .cat-tile{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);cursor:pointer;display:flex;flex-direction:column}
 .cat-tile .thumb{aspect-ratio:1;background:#d8d8dd;overflow:hidden}
@@ -152,7 +154,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 <div id="lightbox" class="lightbox hidden"><img id="lightboxImg"></div>
 <script>
 var DB={categories:[],works:[],checkins:[],checkinLogs:[],plans:[]};
-var state={tab:'collections',category:null,workId:null,planId:null,nodeIdx:0,statRange:'week',calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false};
+var state={tab:'collections',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false};
 var view=document.getElementById('view'),titleEl=document.getElementById('title'),backEl=document.getElementById('back'),actionEl=document.getElementById('action');
 
 var idb=null;
@@ -279,7 +281,7 @@ function closeModal(){document.getElementById('modalRoot').innerHTML=''}
 function renderTabs(){document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('on',t.dataset.t===state.tab)})}
 
 function go(tab){
-  state.tab=tab;state.category=null;state.workId=null;state.planId=null;state.nodeIdx=0;state.openCheckin=null;
+  state.tab=tab;state.category=null;state.workId=null;state.workImgIdx=0;state.planId=null;state.nodeIdx=0;state.openCheckin=null;
   renderTabs();backEl.style.display='none';
   if(tab==='collections'){actionEl.style.display='block';actionEl.onclick=addCategoryModal;renderCollections()}
   else if(tab==='stats'){actionEl.style.display='none';renderStats()}
@@ -289,7 +291,7 @@ function go(tab){
 document.querySelectorAll('.tab').forEach(function(t){t.onclick=function(){go(t.dataset.t)}});
 backEl.onclick=function(){
   if(state.tab==='planDetail'){state.planId=null;state.nodeIdx=0;go('checkins')}
-  else if(state.workId){state.workId=null;renderCategoryView()}
+  else if(state.workId){state.workId=null;state.workImgIdx=0;renderCategoryView()}
   else if(state.category){go('collections')}
 };
 
@@ -314,7 +316,7 @@ function renderCollections(){
   view.innerHTML=h;
   view.querySelectorAll('[data-cat]').forEach(function(el){el.onclick=function(){openCategory(el.dataset.cat)}});
 }
-function openCategory(name){state.category=name;state.workId=null;renderCategoryView()}
+function openCategory(name){state.category=name;state.workId=null;state.workImgIdx=0;renderCategoryView()}
 function renderCategoryView(){
   titleEl.textContent=state.category;
   backEl.style.display='block';actionEl.style.display='block';
@@ -336,9 +338,9 @@ function renderCategoryView(){
   view.innerHTML=h;
   view.querySelectorAll('[data-work]').forEach(function(el){el.onclick=function(){openWork(Number(el.dataset.work))}});
 }
-function openWork(id){state.workId=id;renderWorkView()}
+function openWork(id){state.workId=id;state.workImgIdx=0;renderWorkView()}
 
-/* ===== 作品详情页：按阶段分组显示图片，每个阶段显示自己的备注，图片原比例 ===== */
+/* ===== 作品详情页：一张大图 + 左右切换 ===== */
 function renderWorkView(){
   var w=DB.works.find(function(x){return x.id===state.workId});
   if(!w){state.workId=null;renderCategoryView();return}
@@ -359,40 +361,48 @@ function renderWorkView(){
   if(w.note)h+='<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f2f2f5;white-space:pre-wrap">'+esc(w.note)+'</div>';
   h+='</div>';
 
-  var stagesInfo = (w.stages||[]).map(function(s,i){
-    var prev = i===0?0:(w.stages[i-1].cumulative||0);
-    return { stage:s, idx:i, dur:(s.cumulative||0)-prev };
-  });
-  stagesInfo.reverse();
-
-  var hasAnyImg=false;
-  stagesInfo.forEach(function(x){ if(x.stage.images && x.stage.images.length) hasAnyImg=true; });
-
-  if(hasAnyImg){
-    h+='<div class="img-seq">';
-    stagesInfo.forEach(function(x){
-      if(!x.stage.images || !x.stage.images.length) return;
-      h+='<div class="stage-group-block">';
-      h+='<div class="stage-group-label">阶段 '+(x.idx+1)+' · 用时 '+fmtDur(x.dur)+' · 累计 '+fmtDur(x.stage.cumulative)+'</div>';
-      if(x.stage.note){
-        h+='<div class="stage-group-note">'+esc(x.stage.note)+'</div>';
-      }
-      h+='<div class="stage-group-imgs">';
-      x.stage.images.forEach(function(img){
-        h+='<div class="cell" data-img="'+img+'"><img src="'+img+'"></div>';
-      });
-      h+='</div>';
-      h+='</div>';
+  /* 构建图片扁平列表：每张图带所属阶段信息 */
+  var imgList=[];
+  (w.stages||[]).forEach(function(s,i){
+    var prev=i===0?0:(w.stages[i-1].cumulative||0);
+    var dur=(s.cumulative||0)-prev;
+    (s.images||[]).forEach(function(img){
+      imgList.push({img:img,stageIdx:i,dur:dur,cumulative:s.cumulative,note:s.note||'',date:s.date||''});
     });
+  });
+  /* 最新在最前 */
+  imgList.reverse();
+
+  if(imgList.length){
+    if(state.workImgIdx<0)state.workImgIdx=0;
+    if(state.workImgIdx>imgList.length-1)state.workImgIdx=imgList.length-1;
+    var cur=imgList[state.workImgIdx];
+    h+='<div class="img-viewer">';
+    h+='<div class="img-counter">'+(state.workImgIdx+1)+' / '+imgList.length+'</div>';
+    h+='<div class="img-big" data-img="'+cur.img+'"><img src="'+cur.img+'"></div>';
+    h+='<div class="img-stage-info">';
+    h+='阶段 '+(cur.stageIdx+1)+' · 用时 '+fmtDur(cur.dur)+' · 累计 '+fmtDur(cur.cumulative)+(cur.date?' · '+esc(cur.date):'');
+    if(cur.note)h+='<div class="note">'+esc(cur.note)+'</div>';
+    h+='</div>';
+    h+='<div class="img-nav">';
+    h+='<button id="imgPrev"'+(state.workImgIdx===0?' disabled':'')+'>‹ 上一张</button>';
+    h+='<button id="imgNext"'+(state.workImgIdx===imgList.length-1?' disabled':'')+'>下一张 ›</button>';
+    h+='</div>';
     h+='</div>';
   }else{
     h+='<div class="empty">还没有图片</div>';
   }
   view.innerHTML=h;
 
-  view.querySelectorAll('[data-img]').forEach(function(el){
-    el.onclick=function(e){e.stopPropagation();showImg(el.dataset.img)};
-  });
+  /* 大图点击放大 */
+  var bigImg=view.querySelector('.img-big');
+  if(bigImg)bigImg.onclick=function(){showImg(bigImg.dataset.img)};
+
+  var prevBtn=document.getElementById('imgPrev');
+  var nextBtn=document.getElementById('imgNext');
+  if(prevBtn)prevBtn.onclick=function(){if(state.workImgIdx>0){state.workImgIdx--;renderWorkView();}};
+  if(nextBtn)nextBtn.onclick=function(){if(state.workImgIdx<imgList.length-1){state.workImgIdx++;renderWorkView();}};
+
   var starsEl=view.querySelector('.stars');
   starsEl.querySelectorAll('span').forEach(function(s){
     s.onclick=function(){w.rating=Number(s.dataset.v);idbPut('works',w).then(function(){renderWorkView();});};
@@ -406,7 +416,7 @@ function renderWorkView(){
       if(!confirm('确定删除这个作品？'))return;
       idbDel('works',w.id).then(function(){
         DB.works=DB.works.filter(function(x){return x.id!==w.id});
-        closeModal();toast('已删除');state.workId=null;renderCategoryView();
+        closeModal();toast('已删除');state.workId=null;state.workImgIdx=0;renderCategoryView();
       });
     };
   };
