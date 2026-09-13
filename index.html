@@ -19,9 +19,9 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .side{position:absolute;top:50%;transform:translateY(-50%);border:none;background:transparent;font-size:22px;color:#1a1a1a;cursor:pointer;padding:8px 14px;line-height:1}
 #back{left:0;display:none}
 #action{right:0;font-size:26px}
-#view{flex:1;overflow-y:auto;padding:14px;padding-bottom:90px}
+#view{flex:1;overflow-y:auto;padding:14px;padding-bottom:100px}
 #tabs{display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:1px solid #ebebeb;flex-shrink:0;padding-bottom:env(safe-area-inset-bottom)}
-.tab{padding:16px 0;text-align:center;font-size:14px;color:#888;background:#f5f6f8;border:none;cursor:pointer;font-weight:500;font-family:inherit}
+.tab{padding:22px 0;text-align:center;font-size:15px;color:#888;background:#f5f6f8;border:none;cursor:pointer;font-weight:500;font-family:inherit}
 .tab.on{background:#1a1a1a;color:#fff}
 .card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .card h3{margin:0 0 10px;font-size:15px;font-weight:600}
@@ -38,9 +38,9 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .grid34{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .grid34 .cell{aspect-ratio:3/4;background:#d8d8dd;border-radius:8px;overflow:hidden;cursor:pointer}
 .grid34 .cell img{width:100%;height:100%;object-fit:cover;background:#d8d8dd;display:block}
-/* 作品图片查看器：按当前阶段第一张图的比例统一显示 */
 .img-viewer{background:#d8d8dd;border-radius:12px;padding:10px;margin-bottom:12px;border:1.5px dashed #b0b0b8}
 .img-counter{text-align:center;font-size:12px;color:#666;font-weight:600;margin-bottom:8px}
+/* 大图容器：宽高比由 JS 设置为当前阶段第一张图的比例 */
 .img-big{border-radius:8px;overflow:hidden;background:#cfcfd4;cursor:pointer;margin-bottom:8px;display:block;aspect-ratio:1/1;position:relative}
 .img-big img{width:100%;height:100%;display:block;background:#cfcfd4;object-fit:contain}
 .img-stage-info{background:#fff;border-radius:8px;padding:10px 12px;font-size:12px;color:#666;line-height:1.5;margin-bottom:8px}
@@ -154,7 +154,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 <div id="lightbox" class="lightbox hidden"><img id="lightboxImg"></div>
 <script>
 var DB={categories:[],works:[],checkins:[],checkinLogs:[],plans:[]};
-var state={tab:'collections',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false};
+var state={tab:'collections',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false,stageRatios:{}};
 var view=document.getElementById('view'),titleEl=document.getElementById('title'),backEl=document.getElementById('back'),actionEl=document.getElementById('action');
 
 var idb=null;
@@ -183,12 +183,7 @@ function today(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)
 function fmtDate(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
 function fmtTs(ts){var d=new Date(ts);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())}
 function fmtDur(m){m=Math.round(m||0);if(m<60)return m+'分';var h=Math.floor(m/60),mm=m%60;return mm?h+'时'+mm+'分':h+'时'}
-function fmtDurCal(m){
-  m=Math.round(m||0);
-  if(m<60)return m+'min';
-  var h=Math.floor(m/60),mm=m%60;
-  return mm?h+'h'+mm+'min':h+'h';
-}
+function fmtDurCal(m){m=Math.round(m||0);if(m<60)return m+'min';var h=Math.floor(m/60),mm=m%60;return mm?h+'h'+mm+'min':h+'h';}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function toast(m){var t=document.createElement('div');t.textContent=m;t.style.cssText='position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:999';document.body.appendChild(t);setTimeout(function(){t.remove()},1600)}
 
@@ -322,7 +317,6 @@ function renderCategoryView(){
   backEl.style.display='block';actionEl.style.display='block';
   actionEl.onclick=function(){addWorkModal(null,state.category)};
   var works=DB.works.filter(function(w){return w.category===state.category});
-  /* 按添加时间由新到旧排序 */
   works.sort(function(a,b){return (workCreatedAt(b)||0) - (workCreatedAt(a)||0);});
   var total=works.reduce(function(s,w){return s+workTotal(w)},0);
   var h='<div class="card" style="display:flex;justify-content:space-between;align-items:center"><div><div class="muted">累计时长</div><div class="big">'+fmtDur(total)+'</div></div><div style="text-align:right"><div class="muted">作品数</div><div style="font-size:20px;font-weight:600">'+works.length+'</div></div></div>';
@@ -342,7 +336,7 @@ function renderCategoryView(){
 }
 function openWork(id){state.workId=id;state.workImgIdx=0;renderWorkView()}
 
-/* ===== 作品详情页：一张大图 + 左右切换，图片按当前阶段第一张图的比例统一显示 ===== */
+/* ===== 作品详情：一张大图 + 左右切换，按当前阶段第一张图比例统一显示 ===== */
 function renderWorkView(){
   var w=DB.works.find(function(x){return x.id===state.workId});
   if(!w){state.workId=null;renderCategoryView();return}
@@ -377,9 +371,10 @@ function renderWorkView(){
     if(state.workImgIdx<0)state.workImgIdx=0;
     if(state.workImgIdx>imgList.length-1)state.workImgIdx=imgList.length-1;
     var cur=imgList[state.workImgIdx];
+    var ratio=state.stageRatios[w.id+'_'+cur.stageIdx]||'1 / 1';
     h+='<div class="img-viewer">';
     h+='<div class="img-counter">'+(state.workImgIdx+1)+' / '+imgList.length+'</div>';
-    h+='<div class="img-big" data-img="'+cur.img+'" id="bigBox"><img src="'+cur.img+'" id="bigImg"></div>';
+    h+='<div class="img-big" data-img="'+cur.img+'" id="bigBox" style="aspect-ratio:'+ratio+'"><img src="'+cur.img+'"></div>';
     h+='<div class="img-stage-info">';
     h+='阶段 '+(cur.stageIdx+1)+' · 用时 '+fmtDur(cur.dur)+' · 累计 '+fmtDur(cur.cumulative)+(cur.date?' · '+esc(cur.date):'');
     if(cur.note)h+='<div class="note">'+esc(cur.note)+'</div>';
@@ -394,33 +389,34 @@ function renderWorkView(){
   }
   view.innerHTML=h;
 
-  /* 关键：按当前阶段第一张图的比例设置大图容器宽高比 */
+  /* 加载当前阶段首图尺寸并缓存 */
   if(imgList.length){
     var cur2=imgList[state.workImgIdx];
-    var stageImages=w.stages[cur2.stageIdx].images||[];
-    var firstImg=stageImages[0];
-    if(firstImg){
-      var box=document.getElementById('bigBox');
-      var applyRatio=function(nw,nh){
-        if(box&&nw&&nh){
-          box.style.aspectRatio=nw+' / '+nh;
+    var key=w.id+'_'+cur2.stageIdx;
+    if(!state.stageRatios[key]){
+      var firstImg=(w.stages[cur2.stageIdx].images||[])[0];
+      if(firstImg){
+        var probe=new Image();
+        probe.onload=function(){
+          if(probe.naturalWidth&&probe.naturalHeight){
+            var r=probe.naturalWidth+' / '+probe.naturalHeight;
+            state.stageRatios[key]=r;
+            var box=document.getElementById('bigBox');
+            if(box)box.style.aspectRatio=r;
+          }
+        };
+        probe.src=firstImg;
+        if(probe.complete&&probe.naturalWidth){
+          state.stageRatios[key]=probe.naturalWidth+' / '+probe.naturalHeight;
+          var box2=document.getElementById('bigBox');
+          if(box2)box2.style.aspectRatio=state.stageRatios[key];
         }
-      };
-      var probe=new Image();
-      probe.onload=function(){
-        applyRatio(probe.naturalWidth,probe.naturalHeight);
-      };
-      probe.src=firstImg;
-      /* 已缓存时 onload 可能不同步，立刻检查一次 */
-      if(probe.complete&&probe.naturalWidth){
-        applyRatio(probe.naturalWidth,probe.naturalHeight);
       }
     }
   }
 
   var bigBox=document.getElementById('bigBox');
   if(bigBox)bigBox.onclick=function(){showImg(bigBox.dataset.img)};
-
   var prevBtn=document.getElementById('imgPrev');
   var nextBtn=document.getElementById('imgNext');
   if(prevBtn)prevBtn.onclick=function(){if(state.workImgIdx>0){state.workImgIdx--;renderWorkView();}};
@@ -531,6 +527,7 @@ function addWorkModal(work,category){
         for(var i=idx;i<work.stages.length;i++){
           work.stages[i].cumulative=(work.stages[i].cumulative||0)-removedDur;
         }
+        delete state.stageRatios[work.id+'_'+idx];
         idbPut('works',work).then(function(){
           toast('阶段已删除');
           closeModal();
@@ -571,6 +568,7 @@ function addWorkModal(work,category){
             newImages.push(d);done++;
             if(done===newFiles.length){
               work.stages.push({images:newImages,cumulative:cum,date:date,note:snote});
+              delete state.stageRatios[work.id+'_'+(work.stages.length-1)];
               idbPut('works',work).then(function(){closeModal();toast('已保存');renderWorkView();});
             }
           });
