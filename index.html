@@ -26,7 +26,7 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .card h3{margin:0 0 10px;font-size:15px;font-weight:600}
 .card-h{display:flex;justify-content:space-between;align-items:center}
-.fold-btn{border:none;background:transparent;font-size:14px;color:#999;cursor:pointer;padding:2px 6px;line-height:1;transition:transform .2s;-webkit-transition:transform .2s;font-family:inherit}
+.fold-btn{border:none;background:transparent;font-size:20px;color:#999;cursor:pointer;padding:6px 12px;line-height:1;transition:transform .2s;-webkit-transition:transform .2s;font-family:inherit}
 .fold-btn.closed{transform:rotate(-90deg);-webkit-transform:rotate(-90deg)}
 .btn{display:block;width:100%;padding:13px;border:none;border-radius:10px;background:#1a1a1a;color:#fff;font-size:15px;font-weight:500;cursor:pointer;margin-bottom:10px;font-family:inherit}
 .btn.o{background:#fff;color:#1a1a1a;border:1px solid #ddd}
@@ -57,13 +57,14 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .work-tile .dt{font-size:11px;color:#bbb;margin-top:2px}
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .cal .w{text-align:center;font-size:11px;color:#aaa;padding:6px 0}
-.cal .d{aspect-ratio:1;border-radius:8px;background:#f7f8fa;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;border:1px solid transparent;cursor:pointer;position:relative;padding:2px 1px;overflow:hidden}
+.cal .d{aspect-ratio:1 / 1.15;border-radius:8px;background:#f7f8fa;display:flex;flex-direction:column;align-items:center;justify-content:space-between;font-size:13px;border:1px solid transparent;cursor:pointer;position:relative;padding:4px 1px 2px;overflow:hidden}
 .cal .d.has{background:#1a1a1a;color:#fff;font-weight:600}
 .cal .d.today{border-color:#999}
-.cal .d .dur{font-size:8px;line-height:10px;height:10px;color:#aaa;font-weight:500;white-space:nowrap;max-width:100%;overflow:hidden}
-.cal .d.has .dur{color:rgba(255,255,255,.72)}
-.cal .d .n{font-size:9px;line-height:10px;height:10px;color:#c2c2c8;font-weight:600}
-.cal .d.has .n{color:rgba(255,255,255,.85)}
+.cal .d .dd{font-size:14px; font-weight:600; line-height:1;}
+.cal .d .dur{font-size:10px;line-height:1.2;color:#aaa;font-weight:500;white-space:nowrap;max-width:100%;overflow:hidden;text-align:center}
+.cal .d.has .dur{color:rgba(255,255,255,.8)}
+.cal .d .n{font-size:10px;line-height:1.2;color:#c2c2c8;font-weight:600;height:12px}
+.cal .d.has .n{color:rgba(255,255,255,.9)}
 .seg{display:flex;background:#f0f0f3;border-radius:10px;padding:4px;margin-bottom:12px;overflow-x:auto}
 .seg button{flex:1;border:none;background:transparent;padding:8px 12px;font-size:13px;font-weight:500;color:#666;border-radius:8px;cursor:pointer;font-family:inherit;white-space:nowrap}
 .seg button.on{background:#fff;color:#1a1a1a;box-shadow:0 1px 3px rgba(0,0,0,.08)}
@@ -144,7 +145,8 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 <div id="lightbox" class="lightbox hidden"><img id="lightboxImg"></div>
 <script>
 var DB={categories:[],works:[],checkins:[],checkinLogs:[],plans:[]};
-var state={tab:'collections',category:null,workId:null,planId:null,nodeIdx:0,statRange:'week',calMonth:new Date(),openCheckin:null,ckFoldOpen:true,planFoldOpen:true};
+/* 默认关闭打卡和计划的折叠面板 */
+var state={tab:'collections',category:null,workId:null,planId:null,nodeIdx:0,statRange:'week',calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false};
 var view=document.getElementById('view'),titleEl=document.getElementById('title'),backEl=document.getElementById('back'),actionEl=document.getElementById('action');
 
 /* ============ IndexedDB ============ */
@@ -916,7 +918,7 @@ function renderStats(){
   bindCalendarEvents();
 }
 
-/* 图片日历：格子上面显示当天绘画时长，下面显示当天作品数 */
+/* 图片日历：格子上面显示当天绘画时长，中间显示日期，下面显示当天作品数 */
 function renderImageCalendar(){
   var d=state.calMonth;
   var y=d.getFullYear(),m=d.getMonth();
