@@ -100,11 +100,14 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .stars.sm span.on{color:#1a1a1a}
 .stars.nomb{margin-bottom:0}
 .existing-stages{background:#f7f8fa;border-radius:8px;padding:8px;margin-bottom:12px}
-.existing-stage-row{margin-bottom:8px}
-.existing-stage-row:last-child{margin-bottom:0}
-.existing-stage-label{font-size:11px;color:#999;margin-bottom:4px}
-.existing-stage-thumbs{display:flex;gap:4px;overflow-x:auto}
+.existing-stage-row{margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #e8e8ec}
+.existing-stage-row:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
+.existing-stage-label{font-size:12px;color:#666;margin-bottom:6px;font-weight:500}
+.existing-stage-thumbs{display:flex;gap:4px;overflow-x:auto;margin-bottom:6px}
 .existing-stage-thumbs img{width:48px;height:48px;object-fit:cover;border-radius:5px;flex-shrink:0;background:#d8d8dd;cursor:pointer}
+.stage-actions{display:flex;gap:6px}
+.stage-edit-form{background:#fff;border:1px solid #d8d8dd;border-radius:8px;padding:10px;margin-top:8px}
+.stage-edit-form .fld{margin-bottom:6px}
 .dur-row{display:flex;gap:8px;margin-bottom:12px;align-items:center}
 .dur-row input{flex:1;margin-bottom:0;text-align:center}
 .dur-row .lbl{color:#999;font-size:13px;flex-shrink:0}
@@ -237,37 +240,28 @@ function workCreatedAt(w){
 function getAutoAssignedWorks(plan, allWorks){
   var assigned = plan.nodes.map(function(n){ return { node: n, works: [], totalMin: 0 }; });
   var targetWorks = allWorks.filter(function(w){ return String(w.planId)===String(plan.id); });
-  
-  // 按时间顺序排序作品
   targetWorks.sort(function(a,b){
     var ta = workCreatedAt(a) || 0;
     var tb = workCreatedAt(b) || 0;
     return ta - tb;
   });
-
   var currentNodeIdx = 0;
   var nodeAccumulatedTime = 0;
-
   targetWorks.forEach(function(w){
     var wTotal = workTotal(w);
     if (currentNodeIdx < assigned.length) {
       var node = assigned[currentNodeIdx];
       var nodeTargetMin = (node.node.hours || 0) * 60;
-      
-      // 如果加上这个作品会超出目标，且不是第一个作品，则进入下一个节点
       if (nodeAccumulatedTime > 0 && nodeTargetMin > 0 && nodeAccumulatedTime + wTotal > nodeTargetMin) {
         currentNodeIdx++;
         nodeAccumulatedTime = 0;
-        // 如果节点已经全部填满，就不再分配了
         if (currentNodeIdx >= assigned.length) return;
       }
-      
       assigned[currentNodeIdx].works.push(w);
       assigned[currentNodeIdx].totalMin += wTotal;
       nodeAccumulatedTime += wTotal;
     }
   });
-  
   return assigned;
 }
 
@@ -451,20 +445,30 @@ function addWorkModal(work,category){
     body+='</select>';
   }
   body+='<label class="fld">作品备注（可选）</label><textarea id="wf-note" placeholder="整体想法、感受">'+(work?esc(work.note||''):'')+'</textarea>';
+  
+  // 已有阶段：可编辑、可删除
   if(editing&&work.stages&&work.stages.length){
-    body+='<div class="existing-stages"><div class="muted" style="margin-bottom:8px">已有阶段</div>';
+    body+='<div class="existing-stages"><div class="muted" style="margin-bottom:8px;font-weight:500">已有阶段（可编辑）</div>';
     work.stages.forEach(function(stage,idx){
-      body+='<div class="existing-stage-row">';
-      body+='<div class="existing-stage-label">阶段 '+(idx+1)+' · '+fmtDur(stageDur(work,idx))+' · 累计 '+fmtDur(stage.cumulative)+(stage.note?' · '+esc(stage.note):'')+'</div>';
+      var prevCum = idx===0?0:(work.stages[idx-1].cumulative||0);
+      var dur = (stage.cumulative||0) - prevCum;
+      body+='<div class="existing-stage-row" data-stage-row="'+idx+'">';
+      body+='<div class="existing-stage-label" id="stage-label-'+idx+'">阶段 '+(idx+1)+' · '+fmtDur(dur)+' · 累计 '+fmtDur(stage.cumulative)+(stage.note?' · '+esc(stage.note):'')+'</div>';
       if(stage.images&&stage.images.length){
         body+='<div class="existing-stage-thumbs">';
         stage.images.forEach(function(img){body+='<img src="'+img+'" data-eximg="'+img+'">'});
         body+='</div>';
       }
+      body+='<div class="stage-actions">';
+      body+='<button class="btn sm o" data-stage-edit="'+idx+'" type="button">编辑阶段</button>';
+      body+='<button class="btn sm o" data-stage-del="'+idx+'" type="button" style="color:#c33">删除阶段</button>';
+      body+='</div>';
+      body+='<div id="stage-edit-form-'+idx+'" class="stage-edit-form hidden"></div>';
       body+='</div>';
     });
     body+='</div>';
   }
+  
   if(editing)body+='<div class="muted" style="margin:10px 0 8px;font-weight:500">添加新阶段（可选）</div>';
   body+='<label class="fld">图片（可多选，不限张数，按原图保存）</label><input type="file" id="wf-file" accept="image/*" multiple><div id="wf-prev" class="grid34" style="margin-top:10px"></div>';
   body+='<label class="fld">'+(editing?'新阶段累计总时长':'累计总时长')+'</label>';
@@ -484,6 +488,25 @@ function addWorkModal(work,category){
     el.onclick=function(){showImg(el.dataset.eximg)};
   });
   var planSel=document.getElementById('wf-plan');
+
+  /* 阶段编辑/删除处理器 */
+  if(editing){
+    document.querySelectorAll('[data-stage-edit]').forEach(function(b){
+      b.onclick=function(e){
+        e.preventDefault();e.stopPropagation();
+        var idx=Number(b.dataset.stageEdit);
+        showStageEditForm(work,idx);
+      };
+    });
+    document.querySelectorAll('[data-stage-del]').forEach(function(b){
+      b.onclick=function(e){
+        e.preventDefault();e.stopPropagation();
+        if(!confirm('确定删除阶段 '+(Number(b.dataset.stageDel)+1)+'？后续阶段的累计时长会自动调整。'))return;
+        var idx=Number(b.dataset.stageDel);
+        deleteStage(work,idx);
+      };
+    });
+  }
 
   document.getElementById('wf-file').onchange=function(e){
     newFiles=[].slice.call(e.target.files);
@@ -547,6 +570,91 @@ function addWorkModal(work,category){
       });
     }
   };
+}
+
+/* 显示某个阶段的内联编辑表单 */
+function showStageEditForm(work,idx){
+  var stage=work.stages[idx];
+  if(!stage)return;
+  var prevCum = idx===0?0:(work.stages[idx-1].cumulative||0);
+  var dur = (stage.cumulative||0) - prevCum;
+  var h = Math.floor(dur/60);
+  var m = dur%60;
+
+  var formEl=document.getElementById('stage-edit-form-'+idx);
+  if(!formEl)return;
+  if(!formEl.classList.contains('hidden')){
+    formEl.classList.add('hidden');
+    return;
+  }
+
+  var html='';
+  html+='<label class="fld">累计时长</label>';
+  html+='<div class="dur-row"><input type="number" id="edit-h-'+idx+'" value="'+h+'" min="0" placeholder="时"><span class="lbl">时</span><input type="number" id="edit-m-'+idx+'" value="'+m+'" min="0" max="59" placeholder="分"><span class="lbl">分</span></div>';
+  html+='<label class="fld">日期</label><input type="date" id="edit-date-'+idx+'" value="'+(stage.date||today())+'">';
+  html+='<label class="fld">备注</label><textarea id="edit-note-'+idx+'">'+esc(stage.note||'')+'</textarea>';
+  html+='<div style="display:flex;gap:8px;margin-top:4px">';
+  html+='<button class="btn sm" id="edit-save-'+idx+'" type="button">保存</button>';
+  html+='<button class="btn sm o" id="edit-cancel-'+idx+'" type="button">取消</button>';
+  html+='</div>';
+  formEl.innerHTML=html;
+  formEl.classList.remove('hidden');
+
+  document.getElementById('edit-save-'+idx).onclick=function(){
+    var newH=parseInt(document.getElementById('edit-h-'+idx).value)||0;
+    var newM=parseInt(document.getElementById('edit-m-'+idx).value)||0;
+    var newCum=newH*60+newM;
+    var newDate=document.getElementById('edit-date-'+idx).value;
+    var newNote=document.getElementById('edit-note-'+idx).value.trim();
+
+    if(newCum<=0){toast('累计时长必须大于 0');return}
+    var prevCum2 = idx===0?0:(work.stages[idx-1].cumulative||0);
+    if(newCum<=prevCum2){toast('累计时长必须大于前一阶段的 '+fmtDur(prevCum2));return}
+    var oldCum=stage.cumulative||0;
+    var diff=newCum-oldCum;
+    stage.cumulative=newCum;
+    stage.date=newDate;
+    stage.note=newNote;
+    for(var i=idx+1;i<work.stages.length;i++){
+      work.stages[i].cumulative=(work.stages[i].cumulative||0)+diff;
+    }
+    idbPut('works',work).then(function(){
+      toast('阶段已更新');
+      refreshStageLabels(work);
+      formEl.classList.add('hidden');
+    });
+  };
+
+  document.getElementById('edit-cancel-'+idx).onclick=function(){
+    formEl.classList.add('hidden');
+  };
+}
+
+/* 删除某个阶段，并调整后续阶段的累计时长 */
+function deleteStage(work,idx){
+  if(idx<0||idx>=work.stages.length)return;
+  var removedDur=stageDur(work,idx);
+  work.stages.splice(idx,1);
+  for(var i=idx;i<work.stages.length;i++){
+    work.stages[i].cumulative=(work.stages[i].cumulative||0)-removedDur;
+  }
+  idbPut('works',work).then(function(){
+    toast('阶段已删除');
+    closeModal();
+    addWorkModal(work,work.category);
+  });
+}
+
+/* 刷新已有阶段的标签文本 */
+function refreshStageLabels(work){
+  work.stages.forEach(function(stage,idx){
+    var labelEl=document.getElementById('stage-label-'+idx);
+    if(labelEl){
+      var prevCum=idx===0?0:(work.stages[idx-1].cumulative||0);
+      var dur=(stage.cumulative||0)-prevCum;
+      labelEl.textContent='阶段 '+(idx+1)+' · '+fmtDur(dur)+' · 累计 '+fmtDur(stage.cumulative)+(stage.note?' · '+stage.note:'');
+    }
+  });
 }
 
 /* ============ 打卡 + 计划 ============ */
@@ -764,7 +872,7 @@ function renderPlanDetail(){
   backEl.style.display='block';actionEl.style.display='none';
   
   var allWorks = DB.works;
-  var assigned = getAutoAssignedWorks(p, allWorks); // 核心：按时间自动分节点
+  var assigned = getAutoAssignedWorks(p, allWorks);
 
   var total=allWorks.filter(function(w){return String(w.planId)===String(p.id)}).reduce(function(s,w){return s+workTotal(w)},0);
   var targetMin=(p.totalHours||0)*60;
@@ -851,7 +959,6 @@ function renderPlanDetail(){
 }
 
 function pickCover(p,nodeId){
-  // 自动分配时，我们依然可以保留封面设置，但需要基于当前节点下的图片
   var assigned = getAutoAssignedWorks(p, DB.works);
   var targetAssigned = assigned.find(function(a){ return String(a.node.id) === String(nodeId); });
   if(!targetAssigned) return;
