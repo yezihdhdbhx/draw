@@ -12,7 +12,7 @@
 </script>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;padding:0;height:100%;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f5f6f8;color:#1a1a1a;font-size:15px}
+html,body{margin:0;padding:0;height:100%;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f5f6f8;color:#1a1a1a;font-size:15px;-webkit-text-size-adjust:100%;text-size-adjust:100%;-moz-text-size-adjust:100%}
 body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 auto;overflow:hidden}
 #top{background:#fff;display:flex;align-items:center;justify-content:center;height:75px;border-bottom:1px solid #ebebeb;position:relative;flex-shrink:0}
 #title{font-weight:600;font-size:17px}
@@ -38,7 +38,6 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .grid34{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .grid34 .cell{aspect-ratio:3/4;background:#d8d8dd;border-radius:8px;overflow:hidden;cursor:pointer}
 .grid34 .cell img{width:100%;height:100%;object-fit:cover;background:#d8d8dd;display:block}
-/* 作品图片查看器：容器高度固定，图片按原比例居中显示，按钮和文字位置永远不变 */
 .img-viewer{background:#d8d8dd;border-radius:12px;padding:10px;margin-bottom:12px;border:1.5px dashed #b0b0b8}
 .img-counter{text-align:center;font-size:12px;color:#666;font-weight:600;margin-bottom:8px;line-height:1.2}
 .img-nav{display:flex;gap:8px;margin-bottom:10px}
@@ -132,8 +131,13 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .pick-grid .pcell{aspect-ratio:1;background:#d8d8dd;border-radius:8px;overflow:hidden;cursor:pointer;position:relative}
 .pick-grid .pcell img{width:100%;height:100%;object-fit:cover;display:block}
 .pick-grid .pcell.sel{outline:3px solid #1a1a1a;outline-offset:-3px}
-.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:300;display:flex;align-items:center;justify-content:center}
-.lightbox img{max-width:96vw;max-height:90vh;object-fit:contain}
+/* 大图查看：支持点击放大到原图 1:1，可滚动查看细节 */
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:300;overflow:auto;-webkit-overflow-scrolling:touch;padding:20px;text-align:center;display:none}
+.lightbox.show{display:block}
+.lightbox::before{content:'';display:inline-block;height:100%;vertical-align:middle}
+.lightbox img{max-width:96vw;max-height:90vh;object-fit:contain;display:inline-block;vertical-align:middle;cursor:zoom-in;touch-action:manipulation}
+.lightbox img.zoomed{max-width:none;max-height:none;cursor:zoom-out}
+#lightboxClose{position:fixed;top:14px;right:16px;width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,.18);color:#fff;font-size:22px;cursor:pointer;z-index:301;line-height:1}
 .hidden{display:none!important}
 </style>
 </head>
@@ -151,7 +155,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 <button class="tab" data-t="settings">设置</button>
 </div>
 <div id="modalRoot"></div>
-<div id="lightbox" class="lightbox hidden"><img id="lightboxImg"></div>
+<div id="lightbox" class="lightbox"><img id="lightboxImg"><button id="lightboxClose">×</button></div>
 <script>
 var DB={categories:[],works:[],checkins:[],checkinLogs:[],plans:[]};
 var state={tab:'collections',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false};
@@ -336,7 +340,6 @@ function renderCategoryView(){
 }
 function openWork(id){state.workId=id;state.workImgIdx=0;renderWorkView()}
 
-/* ===== 作品详情：按钮和文字位置固定，图片在固定高度容器内按原比例居中 ===== */
 function renderWorkView(){
   var w=DB.works.find(function(x){return x.id===state.workId});
   if(!w){state.workId=null;renderCategoryView();return}
@@ -1051,8 +1054,38 @@ function importAll(){
   };
   inp.click();
 }
-function showImg(src){document.getElementById('lightboxImg').src=src;document.getElementById('lightbox').classList.remove('hidden')}
-document.getElementById('lightbox').onclick=function(){this.classList.add('hidden')};
+
+/* ============ 大图查看：单击图片在适应屏幕/原图1:1之间切换，点背景关闭 ============ */
+function showImg(src){
+  var lb=document.getElementById('lightbox');
+  var img=document.getElementById('lightboxImg');
+  img.classList.remove('zoomed');
+  img.src=src;
+  lb.classList.add('show');
+  lb.scrollTop=0;
+  lb.scrollLeft=0;
+}
+document.getElementById('lightboxImg').onclick=function(e){
+  e.stopPropagation();
+  this.classList.toggle('zoomed');
+  if(this.classList.contains('zoomed')){
+    var lb=document.getElementById('lightbox');
+    setTimeout(function(){lb.scrollLeft=(lb.scrollWidth-lb.clientWidth)/2;lb.scrollTop=(lb.scrollHeight-lb.clientHeight)/2;},0);
+  }
+};
+document.getElementById('lightbox').onclick=function(e){
+  if(e.target===this){
+    this.classList.remove('show');
+    document.getElementById('lightboxImg').classList.remove('zoomed');
+    document.getElementById('lightboxImg').src='';
+  }
+};
+document.getElementById('lightboxClose').onclick=function(){
+  var lb=document.getElementById('lightbox');
+  lb.classList.remove('show');
+  document.getElementById('lightboxImg').classList.remove('zoomed');
+  document.getElementById('lightboxImg').src='';
+};
 
 openIDB().then(function(){
   return Promise.all([idbAll('categories'),idbAll('works'),idbAll('checkins'),idbAll('checkinLogs'),idbAll('plans')]);
