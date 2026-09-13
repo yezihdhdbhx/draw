@@ -131,13 +131,13 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .pick-grid .pcell{aspect-ratio:1;background:#d8d8dd;border-radius:8px;overflow:hidden;cursor:pointer;position:relative}
 .pick-grid .pcell img{width:100%;height:100%;object-fit:cover;display:block}
 .pick-grid .pcell.sel{outline:3px solid #1a1a1a;outline-offset:-3px}
-/* 大图查看：支持点击放大到原图 1:1，可滚动查看细节 */
-.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:300;overflow:auto;-webkit-overflow-scrolling:touch;padding:20px;text-align:center;display:none}
-.lightbox.show{display:block}
-.lightbox::before{content:'';display:inline-block;height:100%;vertical-align:middle}
-.lightbox img{max-width:96vw;max-height:90vh;object-fit:contain;display:inline-block;vertical-align:middle;cursor:zoom-in;touch-action:manipulation}
-.lightbox img.zoomed{max-width:none;max-height:none;cursor:zoom-out}
-#lightboxClose{position:fixed;top:14px;right:16px;width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,.18);color:#fff;font-size:22px;cursor:pointer;z-index:301;line-height:1}
+/* ====== 大图查看器：极简结构，最可靠 ====== */
+#lightbox{position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:9999;overflow:auto;-webkit-overflow-scrolling:touch;display:none}
+#lightbox.show{display:block}
+#lightboxImg{display:block;max-width:100vw;max-height:100vh;margin:auto;cursor:zoom-in;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#lightboxImg.zoomed{max-width:none;max-height:none;margin:0;cursor:zoom-out}
+#lightboxClose{position:fixed;top:14px;right:16px;width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,.22);color:#fff;font-size:26px;cursor:pointer;z-index:10000;line-height:1;padding:0;font-family:inherit}
+#lightboxHint{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);color:#fff;padding:6px 14px;border-radius:20px;font-size:12px;z-index:10000;pointer-events:none}
 .hidden{display:none!important}
 </style>
 </head>
@@ -155,7 +155,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 <button class="tab" data-t="settings">设置</button>
 </div>
 <div id="modalRoot"></div>
-<div id="lightbox" class="lightbox"><img id="lightboxImg"><button id="lightboxClose">×</button></div>
+<div id="lightbox"><img id="lightboxImg"><button id="lightboxClose">×</button><div id="lightboxHint">点图片放大 · 点背景关闭</div></div>
 <script>
 var DB={categories:[],works:[],checkins:[],checkinLogs:[],plans:[]};
 var state={tab:'collections',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false};
@@ -189,7 +189,7 @@ function fmtTs(ts){var d=new Date(ts);return d.getFullYear()+'-'+pad(d.getMonth(
 function fmtDur(m){m=Math.round(m||0);if(m<60)return m+'分';var h=Math.floor(m/60),mm=m%60;return mm?h+'时'+mm+'分':h+'时'}
 function fmtDurCal(m){m=Math.round(m||0);if(m<60)return m+'min';var h=Math.floor(m/60),mm=m%60;return mm?h+'h'+mm+'min':h+'h';}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
-function toast(m){var t=document.createElement('div');t.textContent=m;t.style.cssText='position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:999';document.body.appendChild(t);setTimeout(function(){t.remove()},1600)}
+function toast(m){var t=document.createElement('div');t.textContent=m;t.style.cssText='position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:10001';document.body.appendChild(t);setTimeout(function(){t.remove()},1600)}
 
 function bindPress(el,onTap,onLong,dur){
   var timer=null,longFired=false,pressing=false;
@@ -1055,37 +1055,46 @@ function importAll(){
   inp.click();
 }
 
-/* ============ 大图查看：单击图片在适应屏幕/原图1:1之间切换，点背景关闭 ============ */
+/* ============ 大图查看：极简版 ============ */
 function showImg(src){
   var lb=document.getElementById('lightbox');
   var img=document.getElementById('lightboxImg');
   img.classList.remove('zoomed');
   img.src=src;
   lb.classList.add('show');
-  lb.scrollTop=0;
-  lb.scrollLeft=0;
+  lb.scrollTop=0;lb.scrollLeft=0;
 }
-document.getElementById('lightboxImg').onclick=function(e){
+document.getElementById('lightboxImg').addEventListener('click',function(e){
   e.stopPropagation();
-  this.classList.toggle('zoomed');
-  if(this.classList.contains('zoomed')){
-    var lb=document.getElementById('lightbox');
-    setTimeout(function(){lb.scrollLeft=(lb.scrollWidth-lb.clientWidth)/2;lb.scrollTop=(lb.scrollHeight-lb.clientHeight)/2;},0);
+  var isZoomed=this.classList.toggle('zoomed');
+  var lb=document.getElementById('lightbox');
+  if(isZoomed){
+    toast('已放大，可拖动查看细节');
+    setTimeout(function(){
+      lb.scrollLeft=(lb.scrollWidth-lb.clientWidth)/2;
+      lb.scrollTop=(lb.scrollHeight-lb.clientHeight)/2;
+    },50);
+  }else{
+    toast('已恢复全屏');
+    lb.scrollTop=0;lb.scrollLeft=0;
   }
-};
-document.getElementById('lightbox').onclick=function(e){
-  if(e.target===this){
+});
+document.getElementById('lightbox').addEventListener('click',function(e){
+  if(e.target===this||e.target.id==='lightboxHint'){
     this.classList.remove('show');
-    document.getElementById('lightboxImg').classList.remove('zoomed');
-    document.getElementById('lightboxImg').src='';
+    var img=document.getElementById('lightboxImg');
+    img.classList.remove('zoomed');
+    img.src='';
   }
-};
-document.getElementById('lightboxClose').onclick=function(){
+});
+document.getElementById('lightboxClose').addEventListener('click',function(e){
+  e.stopPropagation();
   var lb=document.getElementById('lightbox');
   lb.classList.remove('show');
-  document.getElementById('lightboxImg').classList.remove('zoomed');
-  document.getElementById('lightboxImg').src='';
-};
+  var img=document.getElementById('lightboxImg');
+  img.classList.remove('zoomed');
+  img.src='';
+});
 
 openIDB().then(function(){
   return Promise.all([idbAll('categories'),idbAll('works'),idbAll('checkins'),idbAll('checkinLogs'),idbAll('plans')]);
