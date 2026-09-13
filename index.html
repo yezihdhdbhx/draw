@@ -63,7 +63,8 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .cal .d.has{background:#1a1a1a;color:#fff;font-weight:600}
 .cal .d.today{border-color:#999}
 .cal .d .dd{font-size:14px; font-weight:600; line-height:1;}
-.cal .d .dur{font-size:10px;line-height:1.2;color:#aaa;font-weight:500;white-space:nowrap;max-width:100%;overflow:hidden;text-align:center}
+/* 日历时长字体缩小 */
+.cal .d .dur{font-size:8px;line-height:1.1;color:#aaa;font-weight:500;white-space:nowrap;max-width:100%;overflow:hidden;text-align:center}
 .cal .d.has .dur{color:rgba(255,255,255,.8)}
 .cal .d .n{font-size:10px;line-height:1.2;color:#c2c2c8;font-weight:600;height:12px}
 .cal .d.has .n{color:rgba(255,255,255,.9)}
@@ -178,6 +179,13 @@ function today(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)
 function fmtDate(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
 function fmtTs(ts){var d=new Date(ts);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())}
 function fmtDur(m){m=Math.round(m||0);if(m<60)return m+'分';var h=Math.floor(m/60),mm=m%60;return mm?h+'时'+mm+'分':h+'时'}
+/* 日历专用的极简时长格式：h 和 min */
+function fmtDurCal(m){
+  m=Math.round(m||0);
+  if(m<60)return m+'min';
+  var h=Math.floor(m/60),mm=m%60;
+  return mm?h+'h'+mm+'min':h+'h';
+}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function toast(m){var t=document.createElement('div');t.textContent=m;t.style.cssText='position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:999';document.body.appendChild(t);setTimeout(function(){t.remove()},1600)}
 
@@ -920,7 +928,7 @@ function renderStats(){
   bindCalendarEvents();
 }
 
-/* 图片日历：格子上面显示当天绘画时长，中间显示日期，下面显示当天作品数 */
+/* 图片日历：格子上面显示当天绘画时长（简化版h和min），中间显示日期，下面显示当天作品数 */
 function renderImageCalendar(){
   var d=state.calMonth;
   var y=d.getFullYear(),m=d.getMonth();
@@ -946,7 +954,7 @@ function renderImageCalendar(){
     var wk=info&&info.works>0?info.works:0;
     var has=dur>0||wk>0;
     cells+='<div class="d'+(has?' has':'')+(ds===td?' today':'')+'" data-calday="'+ds+'">'
-      +'<span class="dur">'+(dur>0?fmtDur(dur):'')+'</span>'
+      +'<span class="dur">'+(dur>0?fmtDurCal(dur):'')+'</span>'
       +'<span class="dd">'+day+'</span>'
       +'<span class="n">'+(wk>0?wk:'')+'</span>'
       +'</div>';
