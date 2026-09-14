@@ -126,7 +126,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .node-head{display:flex;justify-content:space-between;align-items:center}
 .node-name{font-weight:600}
 .node-thumbs{display:flex;gap:6px;overflow-x:auto;padding-top:10px;margin-top:10px;border-top:1px solid #f2f2f5}
-.node-thumbs img{width:70px;height:70px;object-fit:cover;border-radius:8px;flex-shrink:0;background:#d8d8dd}
+.node-thumbs img{width:70px;height:70px;object-fit:cover;border-radius:8px;flex-shrink:0;background:#d8d8dd;cursor:pointer}
 .node-cover{aspect-ratio:1;margin-top:10px;border-radius:8px;overflow:hidden;background:#d8d8dd}
 .node-cover img{width:100%;height:100%;object-fit:cover;background:#d8d8dd;display:block}
 .node-nav{display:flex;align-items:center;gap:8px;margin-bottom:10px}
@@ -338,7 +338,7 @@ function renderCategoryView(){
 }
 function openWork(id){state.workId=id;state.workImgIdx=0;renderWorkView()}
 
-/* ===== 作品详情：按钮和阶段信息固定在上方，图片直接显示 ===== */
+/* ===== 作品详情 ===== */
 function renderWorkView(){
   var w=DB.works.find(function(x){return x.id===state.workId});
   if(!w){state.workId=null;renderCategoryView();return}
@@ -568,35 +568,40 @@ function addWorkModal(work,category){
   };
 }
 
+/* ===== 编辑阶段：改的是本阶段用时；不能比原来小；可改大；可不改 ===== */
 function openEditStageModal(work,idx){
   var stage=work.stages[idx];
   if(!stage)return;
   var prevCum=idx===0?0:(work.stages[idx-1].cumulative||0);
-  var dur=(stage.cumulative||0)-prevCum;
-  var h=Math.floor(dur/60);
-  var m=dur%60;
+  var oldDur=(stage.cumulative||0)-prevCum;
+  var oldH=Math.floor(oldDur/60);
+  var oldM=oldDur%60;
   var body='';
-  body+='<label class="fld">累计时长（必须大于前一阶段 '+fmtDur(prevCum)+'）</label>';
-  body+='<div class="dur-row"><input type="number" id="edit-h" value="'+h+'" min="0" placeholder="时"><span class="lbl">时</span><input type="number" id="edit-m" value="'+m+'" min="0" max="59" placeholder="分"><span class="lbl">分</span></div>';
+  body+='<label class="fld">本阶段用时（不能小于原来，可留空不改）</label>';
+  body+='<div class="dur-row"><input type="number" id="edit-h" min="0" placeholder="时" value="'+oldH+'"><span class="lbl">时</span><input type="number" id="edit-m" min="0" max="59" placeholder="分" value="'+oldM+'"><span class="lbl">分</span></div>';
+  body+='<div class="muted" style="margin-top:-6px;margin-bottom:12px">原用时：'+fmtDur(oldDur)+'</div>';
   body+='<label class="fld">日期</label><input type="date" id="edit-date" value="'+(stage.date||today())+'">';
   body+='<label class="fld">备注</label><textarea id="edit-note">'+esc(stage.note||'')+'</textarea>';
   openModal('编辑阶段 '+(idx+1),body,'<button class="btn o" data-close>取消</button><button class="btn" id="edit-save">保存</button>');
   document.getElementById('edit-save').onclick=function(){
-    var newH=parseInt(document.getElementById('edit-h').value)||0;
-    var newM=parseInt(document.getElementById('edit-m').value)||0;
-    var newCum=newH*60+newM;
+    var hVal=document.getElementById('edit-h').value.trim();
+    var mVal=document.getElementById('edit-m').value.trim();
     var newDate=document.getElementById('edit-date').value;
     var newNote=document.getElementById('edit-note').value.trim();
-    if(newCum<=0){toast('累计时长必须大于 0');return}
-    if(newCum<=prevCum){toast('累计时长必须大于前一阶段的 '+fmtDur(prevCum));return}
-    var oldCum=stage.cumulative||0;
-    var diff=newCum-oldCum;
-    stage.cumulative=newCum;
+    var sameAsOld=(String(oldH)===hVal||(oldH===0&&hVal===''))&&(String(oldM)===mVal||(oldM===0&&mVal===''));
+    if(!sameAsOld && (hVal!=='' || mVal!=='')){
+      var newH=parseInt(hVal)||0;
+      var newM=parseInt(mVal)||0;
+      var newDur=newH*60+newM;
+      if(newDur<oldDur){toast('本阶段用时不能小于 '+fmtDur(oldDur));return}
+      var diff=newDur-oldDur;
+      stage.cumulative=(stage.cumulative||0)+diff;
+      for(var i=idx+1;i<work.stages.length;i++){
+        work.stages[i].cumulative=(work.stages[i].cumulative||0)+diff;
+      }
+    }
     stage.date=newDate;
     stage.note=newNote;
-    for(var i=idx+1;i<work.stages.length;i++){
-      work.stages[i].cumulative=(work.stages[i].cumulative||0)+diff;
-    }
     idbPut('works',work).then(function(){
       closeModal();
       toast('阶段已更新');
@@ -842,9 +847,11 @@ function renderPlanDetail(){
     h+='</div>';
     if(imgs.length){
       var cover=(n.coverImg&&imgs.indexOf(n.coverImg)>=0)?n.coverImg:imgs[0];
-      h+='<div class="node-cover"><img src="'+cover+'"></div>';
+      h+='<div class="node-cover"><img src="'+cover+'" id="nodeBigImg"></div>';
       h+='<div class="node-thumbs">';
-      imgs.forEach(function(img){h+='<img src="'+img+'"'+(img===cover?' style="outline:2px solid #1a1a1a;outline-offset:-2px"':'')+'>';});
+      imgs.forEach(function(img){
+        h+='<img src="'+img+'" data-thumb="'+img+'"'+(img===cover?' style="outline:2px solid #1a1a1a;outline-offset:-2px"':'')+'>';
+      });
       h+='</div>';
     }else{
       h+='<div class="empty">这个节点还没有图片</div>';
@@ -853,6 +860,21 @@ function renderPlanDetail(){
   }
   h+='<button class="btn o" id="delPlan" style="margin-top:12px;color:#c33">删除计划</button>';
   view.innerHTML=h;
+
+  /* 缩略图点击切换上面的预览大图 */
+  var nodeBigImg=document.getElementById('nodeBigImg');
+  if(nodeBigImg){
+    view.querySelectorAll('[data-thumb]').forEach(function(el){
+      el.onclick=function(e){
+        e.stopPropagation();
+        nodeBigImg.src=el.dataset.thumb;
+        view.querySelectorAll('[data-thumb]').forEach(function(x){x.style.outline='none';x.style.outlineOffset='';});
+        el.style.outline='2px solid #1a1a1a';
+        el.style.outlineOffset='-2px';
+      };
+    });
+  }
+
   var pv=document.getElementById('nodePrev');
   var nx=document.getElementById('nodeNext');
   if(pv)pv.onclick=function(){if(state.nodeIdx>0){state.nodeIdx--;renderPlanDetail()}};
