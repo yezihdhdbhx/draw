@@ -9,17 +9,13 @@
 <title>draw</title>
 <link rel="manifest" href="manifest.json">
 <script>
-  /* Service Worker：带版本更新检测，避免显示旧版本 */
+  /* Service Worker：只注册和静默检查更新，不在打开时自动刷新，避免底栏闪烁 */
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) {
+        /* 静默检查更新：新版本会在下次打开时自然生效 */
         if (reg && reg.update) { try { reg.update(); } catch (e) {} }
       }).catch(function () {});
-    });
-    navigator.serviceWorker.addEventListener('controllerchange', function () {
-      if (sessionStorage.getItem('sw_updated_once')) return;
-      sessionStorage.setItem('sw_updated_once', '1');
-      window.location.reload();
     });
   }
 </script>
