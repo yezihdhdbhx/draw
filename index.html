@@ -3,11 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>draw</title>
 <link rel="manifest" href="manifest.json">
 <script>
+  /* Service Worker：带版本更新检测，避免显示旧版本 */
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js');
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) {
+        /* 每次打开都主动检查一次更新 */
+        if (reg && reg.update) { try { reg.update(); } catch (e) {} }
+      }).catch(function () {});
+    });
+    /* SW 接管新版本时自动刷新一次（避免无限刷新） */
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (sessionStorage.getItem('sw_updated_once')) return;
+      sessionStorage.setItem('sw_updated_once', '1');
+      window.location.reload();
+    });
   }
 </script>
 <style>
@@ -220,6 +235,7 @@ function fmtDurCal(m){m=Math.round(m||0);if(m<60)return m+'min';var h=Math.floor
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function toast(m){var t=document.createElement('div');t.textContent=m;t.style.cssText='position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:9999';document.body.appendChild(t);setTimeout(function(){t.remove()},1600)}
 
+/* 长按 + 点击（其他模块仍在用，例如作品菜单、日期格补卡等） */
 function bindPress(el,onTap,onLong,dur){
   var timer=null,longFired=false,pressing=false;
   var DUR=dur||600;
@@ -245,6 +261,37 @@ function bindPress(el,onTap,onLong,dur){
   el.addEventListener('click',function(e){e.preventDefault();e.stopPropagation()});
 }
 
+/* 单击 + 双击（用于打卡按钮和打卡日历格）
+   单击：延迟 300ms 执行（等待可能的第二次点击）
+   双击：立即执行取消 */
+function bindTapAndDoubleTap(el,onSingle,onDouble){
+  var lastTap=0,timer=null;
+  function handler(e){
+    if(e){e.preventDefault();e.stopPropagation();}
+    var now=Date.now();
+    if(now-lastTap<320){
+      /* 双击：清掉单击计时器，直接执行双击 */
+      if(timer){clearTimeout(timer);timer=null;}
+      lastTap=0;
+      if(navigator.vibrate){try{navigator.vibrate(30)}catch(_){}}
+      onDouble();
+    }else{
+      lastTap=now;
+      if(timer)clearTimeout(timer);
+      timer=setTimeout(function(){
+        timer=null;lastTap=0;
+        onSingle();
+      },300);
+    }
+  }
+  el.addEventListener('pointerup',function(e){
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    handler(e);
+  });
+  el.addEventListener('contextmenu',function(e){e.preventDefault()});
+  el.addEventListener('click',function(e){e.preventDefault();e.stopPropagation()});
+}
+
 /* ============ 全屏图片查看器 ============ */
 function openImageViewer(imgs,idx,syncWork){
   viewerImgs=imgs||[];
@@ -252,15 +299,6 @@ function openImageViewer(imgs,idx,syncWork){
   viewerSyncWork=!!syncWork;
   renderViewer();
   document.getElementById('imgViewerMask').classList.add('on');
-}
-function closeImageViewer(){
-  document.getElementById('imgViewerMask').classList.remove('on');
-  var sync=viewerSyncWork;
-  viewerImgs=[];viewerIdx=0;viewerSyncWork=false;
-  if(sync && state.workId){
-    state.workImgIdx=viewerIdx;
-    /* viewerIdx 已被重置为 0，这里用同步前的值 */
-  }
 }
 function renderViewer(){
   var mask=document.getElementById('imgViewerMask');
@@ -280,16 +318,7 @@ function renderViewer(){
   next.disabled=viewerIdx===viewerImgs.length-1;
   counter.textContent=(viewerIdx+1)+' / '+viewerImgs.length;
 }
-document.getElementById('ivClose').onclick=function(e){e.stopPropagation();closeImageViewer();};
-document.getElementById('ivPrev').onclick=function(e){e.stopPropagation();if(viewerIdx>0){viewerIdx--;renderViewer();}};
-document.getElementById('ivNext').onclick=function(e){e.stopPropagation();if(viewerIdx<viewerImgs.length-1){viewerIdx++;renderViewer();}};
-document.getElementById('imgViewerMask').addEventListener('click',function(e){
-  if(e.target.id==='imgViewerImg'){closeImageViewer();return}
-  if(e.target===this){closeImageViewer();return}
-});
-/* 记录关闭前的索引（用于作品详情同步） */
-var _origCloseImageViewer=closeImageViewer;
-closeImageViewer=function(){
+function closeImageViewer(){
   var sync=viewerSyncWork;
   var lastIdx=viewerIdx;
   document.getElementById('imgViewerMask').classList.remove('on');
@@ -298,8 +327,14 @@ closeImageViewer=function(){
     state.workImgIdx=lastIdx;
     renderWorkView();
   }
-};
+}
 document.getElementById('ivClose').onclick=function(e){e.stopPropagation();closeImageViewer();};
+document.getElementById('ivPrev').onclick=function(e){e.stopPropagation();if(viewerIdx>0){viewerIdx--;renderViewer();}};
+document.getElementById('ivNext').onclick=function(e){e.stopPropagation();if(viewerIdx<viewerImgs.length-1){viewerIdx++;renderViewer();}};
+document.getElementById('imgViewerMask').addEventListener('click',function(e){
+  if(e.target.id==='imgViewerImg'){closeImageViewer();return}
+  if(e.target===this){closeImageViewer();return}
+});
 
 function workTotal(w){if(!w.stages||!w.stages.length)return 0;return w.stages[w.stages.length-1].cumulative||0}
 function stageDur(w,i){var prev=i===0?0:(w.stages[i-1].cumulative||0);return (w.stages[i].cumulative||0)-prev}
@@ -824,12 +859,19 @@ function renderCheckins(){
   }
   h+='</div></div>';
   view.innerHTML=h;
-  view.querySelectorAll('[data-do]').forEach(function(b){var id=Number(b.dataset.do);bindPress(b,function(){doCheckin(id)},function(){cancelCheckin(id)},600);});
+
+  /* 打卡按钮：单击 = 打卡；双击 = 取消打卡 */
+  view.querySelectorAll('[data-do]').forEach(function(b){
+    var id=Number(b.dataset.do);
+    bindTapAndDoubleTap(b,function(){doCheckin(id)},function(){cancelCheckin(id)});
+  });
   view.querySelectorAll('[data-chk]').forEach(function(el){el.onclick=function(){toggleCheckinMonth(Number(el.dataset.chk))}});
+
+  /* 日历日期格：单击 = 补卡；双击 = 取消这天打卡 */
   view.querySelectorAll('[data-ckdate]').forEach(function(el){
     var ckId=Number(el.dataset.ckid);
     var date=el.dataset.ckdate;
-    bindPress(el,function(){addCheckinOnDate(ckId,date)},function(){removeCheckinOnDate(ckId,date)},600);
+    bindTapAndDoubleTap(el,function(){addCheckinOnDate(ckId,date)},function(){removeCheckinOnDate(ckId,date)});
   });
   view.querySelectorAll('[data-ckedit]').forEach(function(b){b.onclick=function(){editCheckinModal(Number(b.dataset.ckedit))}});
   view.querySelectorAll('[data-ckdel]').forEach(function(b){b.onclick=function(){
@@ -870,7 +912,7 @@ function checkinCalendarHTML(id){
     var ds=y+'-'+pad(m+1)+'-'+pad(d);
     cells+='<div class="d'+(set[ds]?' has':'')+(ds===td?' today':'')+'" data-ckdate="'+ds+'" data-ckid="'+id+'">'+d+'</div>';
   }
-  return '<div class="muted" style="margin-bottom:10px">共 '+logs.length+' 次打卡 · 点日期补卡 · 长按取消</div><div class="cal">'+cells+'</div>';
+  return '<div class="muted" style="margin-bottom:10px">共 '+logs.length+' 次打卡 · 点日期补卡 · 双击取消</div><div class="cal">'+cells+'</div>';
 }
 function addCheckinOnDate(checkinId,date){
   if(date>today()){toast('不能给未来日期打卡');return}
@@ -894,7 +936,7 @@ function toggleCheckinMonth(id){
 }
 function doCheckin(id){
   var t=today();
-  if(DB.checkinLogs.some(function(l){return Number(l.checkinId)===Number(id)&&l.date===t})){toast('今天已打卡，长按可取消');return;}
+  if(DB.checkinLogs.some(function(l){return Number(l.checkinId)===Number(id)&&l.date===t})){toast('今天已打卡，双击可取消');return;}
   var log={id:uid(),checkinId:id,date:t};
   DB.checkinLogs.push(log);
   idbPut('checkinLogs',log).then(function(){toast('打卡成功');renderCheckins();});
@@ -1140,7 +1182,6 @@ function showDayImages(ds){
   if(!imgs.length)h+='<div class="empty">这一天没有图片</div>';
   else{h+='<div class="grid34">';imgs.forEach(function(img,i){h+='<div class="cell" data-dayimg="'+i+'"><img src="'+img+'"></div>'});h+='</div>'}
   openModal(ds+' 的图片（'+imgs.length+'）',h,'<button class="btn o" data-close>关闭</button>');
-  /* 点缩略图：打开全屏查看器，可左右切换 */
   document.querySelectorAll('[data-dayimg]').forEach(function(el){
     el.onclick=function(e){
       e.stopPropagation();
