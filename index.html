@@ -38,7 +38,6 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .grid34{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .grid34 .cell{aspect-ratio:3/4;background:#d8d8dd;border-radius:8px;overflow:hidden;cursor:pointer}
 .grid34 .cell img{width:100%;height:100%;object-fit:cover;background:#d8d8dd;display:block}
-/* 作品图片查看器：按钮、信息栏固定位置，图片直接显示原图 */
 .img-viewer{margin-bottom:12px}
 .img-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
 .img-nav button{width:56px;height:56px;border:none;background:#1a1a1a;color:#fff;border-radius:10px;font-size:22px;font-weight:500;cursor:pointer;font-family:inherit;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
@@ -48,7 +47,6 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .img-stage-info .note{font-size:13px;color:#333;margin-top:6px;white-space:pre-wrap;word-break:break-word;line-height:1.6}
 .img-big{display:block;cursor:default;background:transparent}
 .img-big img{width:100%;height:auto;display:block;border-radius:8px;background:#d8d8dd}
-/* 今日画画卡片 */
 .today-card{background:linear-gradient(135deg,#ffffff 0%,#eef0ff 100%);text-align:center;padding:26px 14px;position:relative;overflow:hidden}
 .today-card::before{content:'';position:absolute;top:-50px;right:-50px;width:140px;height:140px;border-radius:50%;background:#dfe3ff;opacity:.55}
 .today-card::after{content:'';position:absolute;bottom:-40px;left:-40px;width:100px;height:100px;border-radius:50%;background:#dfe3ff;opacity:.4}
@@ -376,18 +374,15 @@ function renderWorkView(){
     if(state.workImgIdx>imgList.length-1)state.workImgIdx=imgList.length-1;
     var cur=imgList[state.workImgIdx];
     h+='<div class="img-viewer">';
-    /* 固定位置：三角按钮 + 计数 */
     h+='<div class="img-nav">';
     h+='<button id="imgPrev"'+(state.workImgIdx===0?' disabled':'')+'>◀</button>';
     h+='<div class="img-counter">'+(state.workImgIdx+1)+' / '+imgList.length+'</div>';
     h+='<button id="imgNext"'+(state.workImgIdx===imgList.length-1?' disabled':'')+'>▶</button>';
     h+='</div>';
-    /* 固定位置：阶段信息栏 */
     h+='<div class="img-stage-info">';
     h+='阶段 '+(cur.stageIdx+1)+' · 用时 '+fmtDur(cur.dur)+' · 累计 '+fmtDur(cur.cumulative)+(cur.date?' · '+esc(cur.date):'');
     if(cur.note)h+='<div class="note">'+esc(cur.note)+'</div>';
     h+='</div>';
-    /* 图片直接显示原图 */
     h+='<div class="img-big"><img src="'+cur.img+'"></div>';
     h+='</div>';
   }else{
@@ -906,7 +901,6 @@ function renderStats(){
   var td=today();
   var todayMin=allStages.filter(function(s){return s.date===td}).reduce(function(a,s){return a+s.duration},0);
   var allMin=allStages.reduce(function(a,s){return a+s.duration},0);
-  /* 今日画画卡片：设计感 */
   var h='<div class="card today-card">';
   h+='<div class="today-label">今日画画</div>';
   h+='<div class="today-value">'+fmtDur(todayMin)+'</div>';
@@ -966,7 +960,6 @@ function renderImageCalendar(){
     var dur=info&&info.dur>0?info.dur:0;
     var wk=info&&info.works>0?info.works:0;
     var has=dur>0||wk>0;
-    /* 顺序：作品数在上，日期中间，时间在下 */
     cells+='<div class="d'+(has?' has':'')+(ds===td?' today':'')+'" data-calday="'+ds+'">'
       +'<span class="n">'+(wk>0?wk:'')+'</span>'
       +'<span class="dd">'+day+'</span>'
@@ -1003,14 +996,13 @@ function showDayImages(ds){
 function lineChart(pts){
   var W=340,H=130,PL=32,PR=12,PT=14,PB=24,n=pts.length;
   var max=Math.max(1,Math.max.apply(null,pts.map(function(p){return p.v})));
-  var nm=Math.ceil(max/10)*10||10;
+  var nm=Math.ceil(max/60)*60||60;
   var sx=n>1?(W-PL-PR)/(n-1):0;
   var ps=pts.map(function(p,i){return{x:PL+i*sx,y:H-PB-(p.v/nm)*(H-PT-PB),v:p.v,l:p.l}});
   var line=ps.map(function(p,i){return(i?'L':'M')+p.x.toFixed(1)+' '+p.y.toFixed(1)}).join(' ');
   var area=line+' L '+ps[n-1].x.toFixed(1)+' '+(H-PB)+' L '+ps[0].x.toFixed(1)+' '+(H-PB)+' Z';
   var grid='';
-  /* 折线图背景网格加深 */
-  for(var g=0;g<=2;g++){var y=PT+(H-PT-PB)*g/2;var val=Math.round(nm*(1-g/2));grid+='<line x1="'+PL+'" y1="'+y+'" x2="'+(W-PR)+'" y2="'+y+'" stroke="#d0d0d8"/><text x="'+(PL-6)+'" y="'+(y+3)+'" font-size="9" fill="#a0a0a8" text-anchor="end">'+val+'</text>'}
+  for(var g=0;g<=2;g++){var y=PT+(H-PT-PB)*g/2;var valMin=nm*(1-g/2);var val=(valMin/60).toFixed(valMin%60===0?0:1)+'h';grid+='<line x1="'+PL+'" y1="'+y+'" x2="'+(W-PR)+'" y2="'+y+'" stroke="#d0d0d8"/><text x="'+(PL-6)+'" y="'+(y+3)+'" font-size="9" fill="#a0a0a8" text-anchor="end">'+val+'</text>'}
   var dots=ps.map(function(p){return'<circle cx="'+p.x+'" cy="'+p.y+'" r="3" fill="#fff" stroke="#1a1a1a" stroke-width="2"/>'}).join('');
   var lbs=ps.map(function(p,i){if(n>12&&i%2!==0)return'';return'<text x="'+p.x+'" y="'+(H-9)+'" font-size="9" fill="#999" text-anchor="middle">'+p.l+'</text>'}).join('');
   return'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block">'+grid+'<path d="'+area+'" fill="#1a1a1a" opacity="0.08"/><path d="'+line+'" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linejoin="round"/>'+dots+lbs+'</svg>';
