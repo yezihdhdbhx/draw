@@ -19,9 +19,9 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .side{position:absolute;top:50%;transform:translateY(-50%);border:none;background:transparent;font-size:22px;color:#1a1a1a;cursor:pointer;padding:8px 14px;line-height:1}
 #back{left:0;display:none}
 #action{right:0;font-size:26px}
-#view{flex:1;overflow-y:auto;padding:14px;padding-bottom:100px}
-#tabs{display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:1px solid #ebebeb;flex-shrink:0;padding-bottom:env(safe-area-inset-bottom)}
-.tab{padding:22px 0;text-align:center;font-size:15px;color:#888;background:#f5f6f8;border:none;cursor:pointer;font-weight:500;font-family:inherit}
+#view{flex:1;overflow-y:auto;padding:14px;padding-bottom:90px}
+#tabs{display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:1px solid #ebebeb;flex-shrink:0;height:64px;padding-bottom:env(safe-area-inset-bottom)}
+.tab{padding:0;text-align:center;font-size:15px;color:#888;background:#f5f6f8;border:none;cursor:pointer;font-weight:500;font-family:inherit;display:flex;align-items:center;justify-content:center;min-height:56px}
 .tab.on{background:#1a1a1a;color:#fff}
 .card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .card h3{margin:0 0 10px;font-size:15px;font-weight:600}
@@ -752,7 +752,6 @@ function checkinCalendarHTML(id){
   }
   return '<div class="muted" style="margin-bottom:10px">共 '+logs.length+' 次打卡 · 点日期补卡 · 长按取消</div><div class="cal">'+cells+'</div>';
 }
-/* 补卡：给指定日期加一条打卡记录 */
 function addCheckinOnDate(checkinId,date){
   if(date>today()){toast('不能给未来日期打卡');return}
   if(DB.checkinLogs.some(function(l){return Number(l.checkinId)===Number(checkinId)&&l.date===date})){toast('这天已打卡');return}
@@ -763,7 +762,6 @@ function addCheckinOnDate(checkinId,date){
     renderCheckins();
   });
 }
-/* 长按取消：删掉指定日期的打卡记录 */
 function removeCheckinOnDate(checkinId,date){
   var log=DB.checkinLogs.find(function(l){return Number(l.checkinId)===Number(checkinId)&&l.date===date});
   if(!log){toast('这天没有打卡记录');return}
