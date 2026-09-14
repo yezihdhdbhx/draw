@@ -38,15 +38,23 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .grid34{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .grid34 .cell{aspect-ratio:3/4;background:#d8d8dd;border-radius:8px;overflow:hidden;cursor:pointer}
 .grid34 .cell img{width:100%;height:100%;object-fit:cover;background:#d8d8dd;display:block}
-.img-viewer{background:#d8d8dd;border-radius:12px;padding:10px;margin-bottom:12px;border:1.5px dashed #b0b0b8}
-.img-counter{text-align:center;font-size:12px;color:#666;font-weight:600;margin-bottom:8px;line-height:1.2}
-.img-nav{display:flex;gap:8px;margin-bottom:10px}
-.img-nav button{flex:1;border:none;background:#1a1a1a;color:#fff;border-radius:8px;padding:11px 0;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;line-height:1.2}
+/* 作品图片查看器：按钮、信息栏固定位置，图片直接显示原图 */
+.img-viewer{margin-bottom:12px}
+.img-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.img-nav button{width:56px;height:56px;border:none;background:#1a1a1a;color:#fff;border-radius:10px;font-size:22px;font-weight:500;cursor:pointer;font-family:inherit;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
 .img-nav button:disabled{opacity:.3;cursor:default}
-.img-big{border-radius:8px;overflow:hidden;background:#cfcfd4;margin-bottom:8px;height:50vh;display:flex;align-items:center;justify-content:center}
-.img-big img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block}
-.img-stage-info{background:#fff;border-radius:8px;padding:10px 12px;font-size:12px;color:#666;line-height:1.5}
+.img-nav .img-counter{flex:1;text-align:center;font-size:13px;color:#666;font-weight:600}
+.img-stage-info{background:#fff;border-radius:10px;padding:10px 12px;font-size:12px;color:#666;line-height:1.5;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .img-stage-info .note{font-size:13px;color:#333;margin-top:6px;white-space:pre-wrap;word-break:break-word;line-height:1.6}
+.img-big{display:block;cursor:default;background:transparent}
+.img-big img{width:100%;height:auto;display:block;border-radius:8px;background:#d8d8dd}
+/* 今日画画卡片 */
+.today-card{background:linear-gradient(135deg,#ffffff 0%,#eef0ff 100%);text-align:center;padding:26px 14px;position:relative;overflow:hidden}
+.today-card::before{content:'';position:absolute;top:-50px;right:-50px;width:140px;height:140px;border-radius:50%;background:#dfe3ff;opacity:.55}
+.today-card::after{content:'';position:absolute;bottom:-40px;left:-40px;width:100px;height:100px;border-radius:50%;background:#dfe3ff;opacity:.4}
+.today-label{font-size:13px;color:#7a82a8;letter-spacing:1px;position:relative;z-index:1}
+.today-value{font-size:38px;font-weight:700;color:#1a1a1a;margin-top:8px;position:relative;z-index:1;letter-spacing:-1px;line-height:1.15}
+.today-total{font-size:13px;color:#8e8e93;margin-top:12px;position:relative;z-index:1;padding-top:12px;border-top:1px dashed #d8dcf0}
 .grid11{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 .cat-tile{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);cursor:pointer;display:flex;flex-direction:column}
 .cat-tile .thumb{aspect-ratio:1;background:#d8d8dd;overflow:hidden}
@@ -66,7 +74,7 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .cal .d{aspect-ratio:1 / 1.12;border-radius:8px;background:#f7f8fa;display:flex;flex-direction:column;align-items:center;justify-content:space-between;font-size:13px;border:1px solid transparent;cursor:pointer;position:relative;padding:4px 1px 2px;overflow:hidden}
 .cal .d.has{background:#1a1a1a;color:#fff;font-weight:600}
 .cal .d.today{border-color:#999}
-.cal .d .dd{font-size:14px;font-weight:600;line-height:1;}
+.cal .d .dd{font-size:14px;font-weight:600;line-height:1}
 .cal .d .dur{font-size:8px;line-height:1.1;color:#aaa;font-weight:500;white-space:nowrap;max-width:100%;overflow:hidden;text-align:center}
 .cal .d.has .dur{color:rgba(255,255,255,.8)}
 .cal .d .n{font-size:10px;line-height:1.2;color:#c2c2c8;font-weight:600;height:12px}
@@ -332,6 +340,7 @@ function renderCategoryView(){
 }
 function openWork(id){state.workId=id;state.workImgIdx=0;renderWorkView()}
 
+/* ===== 作品详情：按钮和阶段信息固定在上方，图片直接显示 ===== */
 function renderWorkView(){
   var w=DB.works.find(function(x){return x.id===state.workId});
   if(!w){state.workId=null;renderCategoryView();return}
@@ -367,16 +376,19 @@ function renderWorkView(){
     if(state.workImgIdx>imgList.length-1)state.workImgIdx=imgList.length-1;
     var cur=imgList[state.workImgIdx];
     h+='<div class="img-viewer">';
-    h+='<div class="img-counter">'+(state.workImgIdx+1)+' / '+imgList.length+'</div>';
+    /* 固定位置：三角按钮 + 计数 */
     h+='<div class="img-nav">';
-    h+='<button id="imgPrev"'+(state.workImgIdx===0?' disabled':'')+'>‹ 上一张</button>';
-    h+='<button id="imgNext"'+(state.workImgIdx===imgList.length-1?' disabled':'')+'>下一张 ›</button>';
+    h+='<button id="imgPrev"'+(state.workImgIdx===0?' disabled':'')+'>◀</button>';
+    h+='<div class="img-counter">'+(state.workImgIdx+1)+' / '+imgList.length+'</div>';
+    h+='<button id="imgNext"'+(state.workImgIdx===imgList.length-1?' disabled':'')+'>▶</button>';
     h+='</div>';
-    h+='<div class="img-big"><img src="'+cur.img+'"></div>';
+    /* 固定位置：阶段信息栏 */
     h+='<div class="img-stage-info">';
     h+='阶段 '+(cur.stageIdx+1)+' · 用时 '+fmtDur(cur.dur)+' · 累计 '+fmtDur(cur.cumulative)+(cur.date?' · '+esc(cur.date):'');
     if(cur.note)h+='<div class="note">'+esc(cur.note)+'</div>';
     h+='</div>';
+    /* 图片直接显示原图 */
+    h+='<div class="img-big"><img src="'+cur.img+'"></div>';
     h+='</div>';
   }else{
     h+='<div class="empty">还没有图片</div>';
@@ -705,7 +717,6 @@ function renderCheckins(){
   view.innerHTML=h;
   view.querySelectorAll('[data-do]').forEach(function(b){var id=Number(b.dataset.do);bindPress(b,function(){doCheckin(id)},function(){cancelCheckin(id)},600);});
   view.querySelectorAll('[data-chk]').forEach(function(el){el.onclick=function(){toggleCheckinMonth(Number(el.dataset.chk))}});
-  /* 补卡：点击月历日期补卡，长按取消 */
   view.querySelectorAll('[data-ckdate]').forEach(function(el){
     var ckId=Number(el.dataset.ckid);
     var date=el.dataset.ckdate;
@@ -757,18 +768,14 @@ function addCheckinOnDate(checkinId,date){
   if(DB.checkinLogs.some(function(l){return Number(l.checkinId)===Number(checkinId)&&l.date===date})){toast('这天已打卡');return}
   var log={id:uid(),checkinId:checkinId,date:date};
   DB.checkinLogs.push(log);
-  idbPut('checkinLogs',log).then(function(){
-    toast('已补卡 '+date);
-    renderCheckins();
-  });
+  idbPut('checkinLogs',log).then(function(){toast('已补卡 '+date);renderCheckins();});
 }
 function removeCheckinOnDate(checkinId,date){
   var log=DB.checkinLogs.find(function(l){return Number(l.checkinId)===Number(checkinId)&&l.date===date});
   if(!log){toast('这天没有打卡记录');return}
   idbDel('checkinLogs',log.id).then(function(){
     DB.checkinLogs=DB.checkinLogs.filter(function(l){return l.id!==log.id});
-    toast('已取消 '+date);
-    renderCheckins();
+    toast('已取消 '+date);renderCheckins();
   });
 }
 function toggleCheckinMonth(id){
@@ -899,9 +906,11 @@ function renderStats(){
   var td=today();
   var todayMin=allStages.filter(function(s){return s.date===td}).reduce(function(a,s){return a+s.duration},0);
   var allMin=allStages.reduce(function(a,s){return a+s.duration},0);
-  var h='<div class="card" style="text-align:center;padding:20px 14px">';
-  h+='<div class="big">今日画画 '+fmtDur(todayMin)+'</div>';
-  h+='<div class="muted" style="margin-top:6px">总绘画时长 '+fmtDur(allMin)+'</div>';
+  /* 今日画画卡片：设计感 */
+  var h='<div class="card today-card">';
+  h+='<div class="today-label">今日画画</div>';
+  h+='<div class="today-value">'+fmtDur(todayMin)+'</div>';
+  h+='<div class="today-total">总绘画时长 '+fmtDur(allMin)+'</div>';
   h+='</div>';
   h+=renderImageCalendar();
   var h2='<div class="seg">';
@@ -957,10 +966,11 @@ function renderImageCalendar(){
     var dur=info&&info.dur>0?info.dur:0;
     var wk=info&&info.works>0?info.works:0;
     var has=dur>0||wk>0;
+    /* 顺序：作品数在上，日期中间，时间在下 */
     cells+='<div class="d'+(has?' has':'')+(ds===td?' today':'')+'" data-calday="'+ds+'">'
-      +'<span class="dur">'+(dur>0?fmtDurCal(dur):'')+'</span>'
-      +'<span class="dd">'+day+'</span>'
       +'<span class="n">'+(wk>0?wk:'')+'</span>'
+      +'<span class="dd">'+day+'</span>'
+      +'<span class="dur">'+(dur>0?fmtDurCal(dur):'')+'</span>'
       +'</div>';
   }
   return '<div class="card cal-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><button class="btn sm o" data-cal="prev">‹</button><strong>'+y+'年'+(m+1)+'月</strong><button class="btn sm o" data-cal="next">›</button></div><div class="cal">'+cells+'</div></div>';
@@ -999,10 +1009,11 @@ function lineChart(pts){
   var line=ps.map(function(p,i){return(i?'L':'M')+p.x.toFixed(1)+' '+p.y.toFixed(1)}).join(' ');
   var area=line+' L '+ps[n-1].x.toFixed(1)+' '+(H-PB)+' L '+ps[0].x.toFixed(1)+' '+(H-PB)+' Z';
   var grid='';
-  for(var g=0;g<=2;g++){var y=PT+(H-PT-PB)*g/2;var val=Math.round(nm*(1-g/2));grid+='<line x1="'+PL+'" y1="'+y+'" x2="'+(W-PR)+'" y2="'+y+'" stroke="#eee"/><text x="'+(PL-6)+'" y="'+(y+3)+'" font-size="9" fill="#bbb" text-anchor="end">'+val+'</text>'}
+  /* 折线图背景网格加深 */
+  for(var g=0;g<=2;g++){var y=PT+(H-PT-PB)*g/2;var val=Math.round(nm*(1-g/2));grid+='<line x1="'+PL+'" y1="'+y+'" x2="'+(W-PR)+'" y2="'+y+'" stroke="#d0d0d8"/><text x="'+(PL-6)+'" y="'+(y+3)+'" font-size="9" fill="#a0a0a8" text-anchor="end">'+val+'</text>'}
   var dots=ps.map(function(p){return'<circle cx="'+p.x+'" cy="'+p.y+'" r="3" fill="#fff" stroke="#1a1a1a" stroke-width="2"/>'}).join('');
   var lbs=ps.map(function(p,i){if(n>12&&i%2!==0)return'';return'<text x="'+p.x+'" y="'+(H-9)+'" font-size="9" fill="#999" text-anchor="middle">'+p.l+'</text>'}).join('');
-  return'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block">'+grid+'<path d="'+area+'" fill="#1a1a1a" opacity="0.06"/><path d="'+line+'" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linejoin="round"/>'+dots+lbs+'</svg>';
+  return'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block">'+grid+'<path d="'+area+'" fill="#1a1a1a" opacity="0.08"/><path d="'+line+'" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linejoin="round"/>'+dots+lbs+'</svg>';
 }
 
 /* ============ 设置 ============ */
