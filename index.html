@@ -45,7 +45,7 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .img-nav .img-counter{flex:1;text-align:center;font-size:13px;color:#666;font-weight:600}
 .img-stage-info{background:#fff;border-radius:10px;padding:10px 12px;font-size:12px;color:#666;line-height:1.5;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .img-stage-info .note{font-size:13px;color:#333;margin-top:6px;white-space:pre-wrap;word-break:break-word;line-height:1.6}
-.img-big{display:block;cursor:default;background:transparent}
+.img-big{display:block;cursor:pointer;background:transparent}
 .img-big img{width:100%;height:auto;display:block;border-radius:8px;background:#d8d8dd}
 .today-card{background:linear-gradient(135deg,#ffffff 0%,#eef0ff 100%);text-align:center;padding:26px 14px;position:relative;overflow:hidden}
 .today-card::before{content:'';position:absolute;top:-50px;right:-50px;width:140px;height:140px;border-radius:50%;background:#dfe3ff;opacity:.55}
@@ -121,7 +121,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .existing-stage-row:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
 .existing-stage-label{font-size:12px;color:#666;margin-bottom:6px;font-weight:500;line-height:1.5}
 .existing-stage-thumbs{display:flex;gap:4px;overflow-x:auto;margin-bottom:8px}
-.existing-stage-thumbs img{width:48px;height:48px;object-fit:cover;border-radius:5px;flex-shrink:0;background:#d8d8dd}
+.existing-stage-thumbs img{width:48px;height:48px;object-fit:cover;border-radius:5px;flex-shrink:0;background:#d8d8dd;cursor:pointer}
 .stage-btn-row{display:flex;gap:8px}
 .stage-btn-row .btn{flex:1;margin:0;padding:8px 12px;font-size:13px}
 .dur-row{display:flex;gap:8px;margin-bottom:12px;align-items:center}
@@ -144,6 +144,17 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .pick-grid .pcell img{width:100%;height:100%;object-fit:cover;display:block}
 .pick-grid .pcell.sel{outline:3px solid #1a1a1a;outline-offset:-3px}
 .hidden{display:none!important}
+
+/* 全屏图片查看器 */
+.img-viewer-mask{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:300;display:none;align-items:center;justify-content:center;user-select:none;overflow:hidden}
+.img-viewer-mask.on{display:flex}
+.img-viewer-mask img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+.iv-close{position:absolute;top:16px;right:16px;width:44px;height:44px;border:none;background:rgba(255,255,255,.18);color:#fff;font-size:22px;border-radius:50%;cursor:pointer;line-height:1;font-family:inherit;padding:0;z-index:2}
+.iv-prev,.iv-next{position:absolute;top:50%;transform:translateY(-50%);width:52px;height:52px;border:none;background:rgba(255,255,255,.18);color:#fff;font-size:28px;border-radius:50%;cursor:pointer;line-height:1;font-family:inherit;padding:0;display:flex;align-items:center;justify-content:center;z-index:2}
+.iv-prev{left:12px}
+.iv-next{right:12px}
+.iv-prev:disabled,.iv-next:disabled{opacity:.2}
+.iv-counter{position:absolute;bottom:28px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;background:rgba(0,0,0,.55);padding:6px 14px;border-radius:14px;z-index:2}
 </style>
 </head>
 <body>
@@ -160,6 +171,13 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 <button class="tab" data-t="settings">设置</button>
 </div>
 <div id="modalRoot"></div>
+<div class="img-viewer-mask" id="imgViewerMask">
+  <img src="" id="imgViewerImg" alt="">
+  <button class="iv-close" id="ivClose" type="button">✕</button>
+  <button class="iv-prev" id="ivPrev" type="button">‹</button>
+  <button class="iv-next" id="ivNext" type="button">›</button>
+  <div class="iv-counter" id="ivCounter"></div>
+</div>
 <script>
 var DB={categories:[],works:[],checkins:[],checkinLogs:[],plans:[]};
 var state={tab:'collections',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false};
@@ -168,6 +186,9 @@ var view=document.getElementById('view'),titleEl=document.getElementById('title'
 /* 今日卡片背景图（base64）与展示计时器 */
 var todayBgImg=null;
 var todayShowTimer=null;
+
+/* 全屏图片查看器状态 */
+var viewerImgs=[],viewerIdx=0,viewerSyncWork=false;
 
 var idb=null;
 function openIDB(){
@@ -223,6 +244,62 @@ function bindPress(el,onTap,onLong,dur){
   el.addEventListener('contextmenu',function(e){e.preventDefault()});
   el.addEventListener('click',function(e){e.preventDefault();e.stopPropagation()});
 }
+
+/* ============ 全屏图片查看器 ============ */
+function openImageViewer(imgs,idx,syncWork){
+  viewerImgs=imgs||[];
+  viewerIdx=idx||0;
+  viewerSyncWork=!!syncWork;
+  renderViewer();
+  document.getElementById('imgViewerMask').classList.add('on');
+}
+function closeImageViewer(){
+  document.getElementById('imgViewerMask').classList.remove('on');
+  var sync=viewerSyncWork;
+  viewerImgs=[];viewerIdx=0;viewerSyncWork=false;
+  if(sync && state.workId){
+    state.workImgIdx=viewerIdx;
+    /* viewerIdx 已被重置为 0，这里用同步前的值 */
+  }
+}
+function renderViewer(){
+  var mask=document.getElementById('imgViewerMask');
+  var imgEl=document.getElementById('imgViewerImg');
+  var prev=document.getElementById('ivPrev');
+  var next=document.getElementById('ivNext');
+  var counter=document.getElementById('ivCounter');
+  if(!viewerImgs.length){mask.classList.remove('on');return}
+  if(viewerIdx<0)viewerIdx=0;
+  if(viewerIdx>viewerImgs.length-1)viewerIdx=viewerImgs.length-1;
+  imgEl.src=viewerImgs[viewerIdx];
+  var multi=viewerImgs.length>1;
+  prev.style.display=multi?'flex':'none';
+  next.style.display=multi?'flex':'none';
+  counter.style.display=multi?'block':'none';
+  prev.disabled=viewerIdx===0;
+  next.disabled=viewerIdx===viewerImgs.length-1;
+  counter.textContent=(viewerIdx+1)+' / '+viewerImgs.length;
+}
+document.getElementById('ivClose').onclick=function(e){e.stopPropagation();closeImageViewer();};
+document.getElementById('ivPrev').onclick=function(e){e.stopPropagation();if(viewerIdx>0){viewerIdx--;renderViewer();}};
+document.getElementById('ivNext').onclick=function(e){e.stopPropagation();if(viewerIdx<viewerImgs.length-1){viewerIdx++;renderViewer();}};
+document.getElementById('imgViewerMask').addEventListener('click',function(e){
+  if(e.target.id==='imgViewerImg'){closeImageViewer();return}
+  if(e.target===this){closeImageViewer();return}
+});
+/* 记录关闭前的索引（用于作品详情同步） */
+var _origCloseImageViewer=closeImageViewer;
+closeImageViewer=function(){
+  var sync=viewerSyncWork;
+  var lastIdx=viewerIdx;
+  document.getElementById('imgViewerMask').classList.remove('on');
+  viewerImgs=[];viewerIdx=0;viewerSyncWork=false;
+  if(sync && state.workId){
+    state.workImgIdx=lastIdx;
+    renderWorkView();
+  }
+};
+document.getElementById('ivClose').onclick=function(e){e.stopPropagation();closeImageViewer();};
 
 function workTotal(w){if(!w.stages||!w.stages.length)return 0;return w.stages[w.stages.length-1].cumulative||0}
 function stageDur(w,i){var prev=i===0?0:(w.stages[i-1].cumulative||0);return (w.stages[i].cumulative||0)-prev}
@@ -393,7 +470,7 @@ function renderWorkView(){
     h+='阶段 '+(cur.stageIdx+1)+' · 用时 '+fmtDur(cur.dur)+' · 累计 '+fmtDur(cur.cumulative)+(cur.date?' · '+esc(cur.date):'');
     if(cur.note)h+='<div class="note">'+esc(cur.note)+'</div>';
     h+='</div>';
-    h+='<div class="img-big"><img src="'+cur.img+'"></div>';
+    h+='<div class="img-big"><img src="'+cur.img+'" id="workBigImg" title="点击查看大图"></div>';
     h+='</div>';
   }else{
     h+='<div class="empty">还没有图片</div>';
@@ -404,6 +481,15 @@ function renderWorkView(){
   var nextBtn=document.getElementById('imgNext');
   if(prevBtn)prevBtn.onclick=function(){if(state.workImgIdx>0){state.workImgIdx--;renderWorkView();}};
   if(nextBtn)nextBtn.onclick=function(){if(state.workImgIdx<imgList.length-1){state.workImgIdx++;renderWorkView();}};
+
+  /* 点开作品大图：进入全屏查看器，可左右切换，关闭时同步当前索引 */
+  var workBigImg=document.getElementById('workBigImg');
+  if(workBigImg){
+    workBigImg.onclick=function(){
+      var allImgs=imgList.map(function(x){return x.img});
+      openImageViewer(allImgs,state.workImgIdx,true);
+    };
+  }
 
   var starsEl=view.querySelector('.stars');
   starsEl.querySelectorAll('span').forEach(function(s){
@@ -465,7 +551,7 @@ function addWorkModal(work,category){
       body+='<div class="existing-stage-label">阶段 '+(idx+1)+' · '+fmtDur(dur)+' · 累计 '+fmtDur(stage.cumulative)+(stage.note?' · '+esc(stage.note):'')+'</div>';
       if(stage.images&&stage.images.length){
         body+='<div class="existing-stage-thumbs">';
-        stage.images.forEach(function(img){body+='<img src="'+img+'">'});
+        stage.images.forEach(function(img,i){body+='<img src="'+img+'" data-stageimg="'+idx+'_'+i+'">'});
         body+='</div>';
       }
       body+='<div class="stage-btn-row">';
@@ -491,6 +577,19 @@ function addWorkModal(work,category){
       starsEl.querySelectorAll('span').forEach(function(x){x.classList.toggle('on',Number(x.dataset.v)<=rating)});
     };
   });
+
+  /* 已有阶段缩略图：点开可看大图 */
+  document.querySelectorAll('[data-stageimg]').forEach(function(el){
+    el.onclick=function(e){
+      e.stopPropagation();
+      var parts=el.dataset.stageimg.split('_');
+      var sIdx=Number(parts[0]);
+      var iIdx=Number(parts[1]);
+      var stageImgs=(work.stages[sIdx]&&work.stages[sIdx].images)?work.stages[sIdx].images:[];
+      openImageViewer(stageImgs,iIdx,false);
+    };
+  });
+
   if(editing&&work.stages){
     work.stages.forEach(function(stage,idx){
       var eb=document.getElementById('stage-edit-btn-'+idx);
@@ -1037,10 +1136,17 @@ function showDayImages(ds){
       if(s.date===ds){(s.images||[]).forEach(function(img){imgs.push(img)});totalMin+=stageDur(w,i);}
     });
   });
-  var h='<div class="muted" style="margin-bottom:10px">'+ds+' · 总绘制 '+fmtDur(totalMin)+'</div>';
+  var h='<div class="muted" style="margin-bottom:10px">'+ds+' · 总绘制 '+fmtDur(totalMin)+' · 点图片可看大图</div>';
   if(!imgs.length)h+='<div class="empty">这一天没有图片</div>';
-  else{h+='<div class="grid34">';imgs.forEach(function(img){h+='<div class="cell"><img src="'+img+'"></div>'});h+='</div>'}
+  else{h+='<div class="grid34">';imgs.forEach(function(img,i){h+='<div class="cell" data-dayimg="'+i+'"><img src="'+img+'"></div>'});h+='</div>'}
   openModal(ds+' 的图片（'+imgs.length+'）',h,'<button class="btn o" data-close>关闭</button>');
+  /* 点缩略图：打开全屏查看器，可左右切换 */
+  document.querySelectorAll('[data-dayimg]').forEach(function(el){
+    el.onclick=function(e){
+      e.stopPropagation();
+      openImageViewer(imgs,Number(el.dataset.dayimg),false);
+    };
+  });
 }
 function lineChart(pts){
   var W=340,H=130,PL=32,PR=12,PT=14,PB=24,n=pts.length;
