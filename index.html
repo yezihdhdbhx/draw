@@ -53,7 +53,7 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .today-label{font-size:13px;color:#7a82a8;letter-spacing:1px;position:relative;z-index:1}
 .today-value{font-size:38px;font-weight:700;color:#1a1a1a;margin-top:8px;position:relative;z-index:1;letter-spacing:-1px;line-height:1.15}
 .today-total{font-size:13px;color:#8e8e93;margin-top:12px;position:relative;z-index:1;padding-top:12px;border-top:1px dashed #d8dcf0}
-.today-bg{position:absolute;inset:0;background-size:cover;background-position:center center;background-repeat:no-repeat;opacity:.6;transition:opacity .35s ease;z-index:0;pointer-events:none}
+.today-bg{position:absolute;inset:0;background-size:cover;background-position:center center;background-repeat:no-repeat;opacity:.4;transition:opacity .35s ease;z-index:0;pointer-events:none}
 .today-card.show-bg .today-bg{opacity:1}
 .today-content{position:relative;z-index:1;transition:opacity .3s ease}
 .today-card.show-bg .today-content{opacity:0}
@@ -1072,11 +1072,11 @@ function renderSettings(){
 
   /* 今日卡片背景图设置 */
   h+='<div class="card"><h3>今日画画卡片背景</h3>';
-  h+='<label class="fld">上传背景图（自动以 60% 透明度作为底图）</label>';
+  h+='<label class="fld">上传背景图（自动以 40% 透明度作为底图）</label>';
   h+='<input type="file" id="bgFile" accept="image/*">';
   if(todayBgImg){
     h+='<div style="margin-top:6px;border-radius:10px;overflow:hidden;background:#f0f0f3">';
-    h+='<img src="'+todayBgImg+'" style="width:100%;display:block;opacity:.6">';
+    h+='<img src="'+todayBgImg+'" style="width:100%;display:block;opacity:.4">';
     h+='</div>';
     h+='<button class="btn o" id="bgClear" style="margin-top:10px;color:#c33">移除背景图</button>';
   }
