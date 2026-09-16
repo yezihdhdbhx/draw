@@ -820,7 +820,6 @@ function renderCheckins(){
       var sc=streakCount(logs);
       var doneToday=logs.indexOf(today())>=0;
       var opened=Number(state.openCheckin)===Number(c.id);
-      /* 今天的备注预览 */
       var todayLog=allLogs.find(function(l){return l.date===today()});
       var notePrev='';
       if(todayLog&&todayLog.note){notePrev=' · 📝'+todayLog.note.slice(0,12)+(todayLog.note.length>12?'…':'');}
@@ -852,14 +851,11 @@ function renderCheckins(){
   h+='</div></div>';
   view.innerHTML=h;
 
-  /* 打卡按钮：单击 = 打卡；已打卡时单击 = 编辑当天备注；双击 = 取消打卡 */
   view.querySelectorAll('[data-do]').forEach(function(b){
     var id=Number(b.dataset.do);
     bindTapAndDoubleTap(b,function(){doCheckin(id)},function(){cancelCheckin(id)});
   });
   view.querySelectorAll('[data-chk]').forEach(function(el){el.onclick=function(){toggleCheckinMonth(Number(el.dataset.chk))}});
-
-  /* 日历日期格：单击（未打卡=补卡，已打卡=编辑备注）；双击 = 取消 */
   view.querySelectorAll('[data-ckdate]').forEach(function(el){
     var ckId=Number(el.dataset.ckid);
     var date=el.dataset.ckdate;
@@ -913,7 +909,6 @@ function checkinCalendarHTML(id){
   var noteCount=logs.filter(function(l){return l.note}).length;
   return '<div class="muted" style="margin-bottom:10px">共 '+logs.length+' 次打卡'+(noteCount?' · '+noteCount+' 条备注':'')+' · 点日期补卡 · 点已打卡日期写备注 · 双击取消</div><div class="cal">'+cells+'</div>';
 }
-/* 打卡备注编辑弹窗 */
 function openCheckinNoteModal(checkinId,date){
   var log=DB.checkinLogs.find(function(l){return Number(l.checkinId)===Number(checkinId)&&l.date===date});
   if(!log){toast('这天没有打卡记录');return}
@@ -958,7 +953,6 @@ function doCheckin(id){
   var t=today();
   var existing=DB.checkinLogs.find(function(l){return Number(l.checkinId)===Number(id)&&l.date===t});
   if(existing){
-    /* 今天已打卡 → 打开备注编辑 */
     openCheckinNoteModal(id,t);
     return;
   }
@@ -1112,24 +1106,33 @@ function renderStats(){
   [['week','周'],['month','月'],['year','年']].forEach(function(r){h2+='<button data-r="'+r[0]+'"'+(state.statRange===r[0]?' class="on"':'')+'>'+r[1]+'</button>';});
   h2+='</div>';
   var now=new Date(),y=now.getFullYear(),m=now.getMonth();
-  var pts=[],total=0,title='',avgLabel='',avgVal=0;
+  var pts=[],total=0,title='',avgLabel='',avgVal=0,avgNote='';
   if(state.statRange==='week'){
     title='本周每天时长';
     var ws=new Date(now);var day=(ws.getDay()+6)%7;ws.setDate(ws.getDate()-day);
     for(var i=0;i<7;i++){var d=new Date(ws);d.setDate(ws.getDate()+i);var ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());var v=allStages.filter(function(s){return s.date===ds}).reduce(function(a,s){return a+s.duration},0);pts.push({l:['一','二','三','四','五','六','日'][i],v:v});total+=v;}
-    avgLabel='平均每天';avgVal=total/7;
+    /* 只按已过去的天数平均：周一已过 1 天，周日已过 7 天 */
+    var daysPassed=day+1;
+    avgLabel='平均每天';avgVal=total/daysPassed;
+    if(daysPassed<7)avgNote='已过 '+daysPassed+' 天';
   }else if(state.statRange==='month'){
     title='本月每天时长';
     var days=new Date(y,m+1,0).getDate();
     for(var d2=1;d2<=days;d2++){var ds2=y+'-'+pad(m+1)+'-'+pad(d2);var v2=allStages.filter(function(s){return s.date===ds2}).reduce(function(a,s){return a+s.duration},0);pts.push({l:String(d2),v:v2});total+=v2;}
-    avgLabel='平均每周';avgVal=total/(days/7);
+    /* 只按已过去的天数折算周数 */
+    var daysPassed2=now.getDate();
+    avgLabel='平均每周';avgVal=total*7/daysPassed2;
+    if(daysPassed2<days)avgNote='已过 '+daysPassed2+' 天';
   }else{
     title='本年每月时长';
     for(var mm=1;mm<=12;mm++){var pre=y+'-'+pad(mm);var v3=allStages.filter(function(s){return (s.date||'').slice(0,7)===pre}).reduce(function(a,s){return a+s.duration},0);pts.push({l:mm+'月',v:v3});total+=v3;}
-    avgLabel='平均每月';avgVal=total/12;
+    /* 只按已过去的月份平均 */
+    var monthsPassed=now.getMonth()+1;
+    avgLabel='平均每月';avgVal=total/monthsPassed;
+    if(monthsPassed<12)avgNote='已过 '+monthsPassed+' 个月';
   }
   h2+='<div class="card"><h3>'+title+'</h3>';
-  h2+='<div class="muted" style="margin-bottom:6px;line-height:1.7">合计 '+fmtDur(total)+'<br>'+avgLabel+' '+fmtDur(avgVal)+'</div>';
+  h2+='<div class="muted" style="margin-bottom:6px;line-height:1.7">合计 '+fmtDur(total)+'<br>'+avgLabel+' '+fmtDur(avgVal)+(avgNote?'（'+avgNote+'）':'')+'</div>';
   h2+=lineChart(pts)+'</div>';
   var cat={};
   allStages.forEach(function(s){var k=s.category||'未分类';cat[k]=(cat[k]||0)+s.duration});
