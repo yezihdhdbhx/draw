@@ -13,7 +13,6 @@
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) {
-        /* 静默检查更新：新版本会在下次打开时自然生效 */
         if (reg && reg.update) { try { reg.update(); } catch (e) {} }
       }).catch(function () {});
     });
@@ -87,6 +86,7 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .cal .d{aspect-ratio:1 / 1.12;border-radius:8px;background:#f7f8fa;display:flex;flex-direction:column;align-items:center;justify-content:space-between;font-size:13px;border:1px solid transparent;cursor:pointer;position:relative;padding:4px 1px 2px;overflow:hidden}
 .cal .d.has{background:#1a1a1a;color:#fff;font-weight:600}
 .cal .d.today{border-color:#999}
+.cal .d.has-note::after{content:'';position:absolute;bottom:3px;right:3px;width:6px;height:6px;border-radius:50%;background:#f5a623;box-shadow:0 0 0 1.5px rgba(255,255,255,.55)}
 .cal .d .dd{font-size:14px;font-weight:600;line-height:1}
 .cal .d .dur{font-size:8px;line-height:1.1;color:#aaa;font-weight:500;white-space:nowrap;max-width:100%;overflow:hidden;text-align:center}
 .cal .d.has .dur{color:rgba(255,255,255,.8)}
@@ -101,7 +101,7 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .chk{display:flex;align-items:center;gap:10px;padding:12px;background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.04);cursor:pointer}
 .chk .n{flex:1;min-width:0}
 .chk .nm{font-weight:600}
-.chk .i{font-size:12px;color:#999;margin-top:2px}
+.chk .i{font-size:12px;color:#999;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chk-month{background:#fff;border-radius:0 0 12px 12px;padding:0 12px 12px;margin-top:-4px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .chk-month-inner{padding-top:10px;border-top:1px solid #f2f2f5}
 .chk-month-actions{display:flex;gap:10px;margin-top:12px}
@@ -229,7 +229,6 @@ function fmtDurCal(m){m=Math.round(m||0);if(m<60)return m+'min';var h=Math.floor
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function toast(m){var t=document.createElement('div');t.textContent=m;t.style.cssText='position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:9999';document.body.appendChild(t);setTimeout(function(){t.remove()},1600)}
 
-/* 长按 + 点击（其他模块仍在用） */
 function bindPress(el,onTap,onLong,dur){
   var timer=null,longFired=false,pressing=false;
   var DUR=dur||600;
@@ -255,7 +254,6 @@ function bindPress(el,onTap,onLong,dur){
   el.addEventListener('click',function(e){e.preventDefault();e.stopPropagation()});
 }
 
-/* 单击 + 双击（用于打卡按钮和打卡日历格） */
 function bindTapAndDoubleTap(el,onSingle,onDouble){
   var lastTap=0,timer=null;
   function handler(e){
@@ -814,15 +812,20 @@ function renderCheckins(){
     h+='<div class="muted" style="padding:6px 0">还没有打卡项</div>';
   }else{
     DB.checkins.forEach(function(c){
-      var logs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)===Number(c.id)}).map(function(l){return l.date}).sort();
+      var allLogs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)===Number(c.id)});
+      var logs=allLogs.map(function(l){return l.date}).sort();
       var last=logs[logs.length-1];
       var info='还没有打卡';
       if(last){var days=Math.round((new Date(today())-new Date(last))/86400000);info='距今天 '+days+' 天';}
       var sc=streakCount(logs);
       var doneToday=logs.indexOf(today())>=0;
       var opened=Number(state.openCheckin)===Number(c.id);
+      /* 今天的备注预览 */
+      var todayLog=allLogs.find(function(l){return l.date===today()});
+      var notePrev='';
+      if(todayLog&&todayLog.note){notePrev=' · 📝'+todayLog.note.slice(0,12)+(todayLog.note.length>12?'…':'');}
       h+='<div class="chk-block">';
-      h+='<div class="chk" data-chk="'+c.id+'" style="margin-top:8px"><div class="n"><div class="nm">'+esc(c.name)+'</div><div class="i">'+info+' · 连续 '+sc+' 天</div></div><button class="btn sm'+(doneToday?' punched':'')+'" data-do="'+c.id+'">'+(doneToday?'已打卡':'打卡')+'</button></div>';
+      h+='<div class="chk" data-chk="'+c.id+'" style="margin-top:8px"><div class="n"><div class="nm">'+esc(c.name)+'</div><div class="i">'+info+' · 连续 '+sc+' 天'+notePrev+'</div></div><button class="btn sm'+(doneToday?' punched':'')+'" data-do="'+c.id+'">'+(doneToday?'已打卡':'打卡')+'</button></div>';
       h+='<div class="chk-month'+(opened?'':' hidden')+'" id="cm-'+c.id+'"><div class="chk-month-inner">'+checkinCalendarHTML(c.id)+'<div class="chk-month-actions"><button class="btn o" data-ckedit="'+c.id+'">修改</button><button class="btn o" data-ckdel="'+c.id+'" style="color:#c33">删除</button></div></div></div>';
       h+='</div>';
     });
@@ -849,15 +852,22 @@ function renderCheckins(){
   h+='</div></div>';
   view.innerHTML=h;
 
+  /* 打卡按钮：单击 = 打卡；已打卡时单击 = 编辑当天备注；双击 = 取消打卡 */
   view.querySelectorAll('[data-do]').forEach(function(b){
     var id=Number(b.dataset.do);
     bindTapAndDoubleTap(b,function(){doCheckin(id)},function(){cancelCheckin(id)});
   });
   view.querySelectorAll('[data-chk]').forEach(function(el){el.onclick=function(){toggleCheckinMonth(Number(el.dataset.chk))}});
+
+  /* 日历日期格：单击（未打卡=补卡，已打卡=编辑备注）；双击 = 取消 */
   view.querySelectorAll('[data-ckdate]').forEach(function(el){
     var ckId=Number(el.dataset.ckid);
     var date=el.dataset.ckdate;
-    bindTapAndDoubleTap(el,function(){addCheckinOnDate(ckId,date)},function(){removeCheckinOnDate(ckId,date)});
+    bindTapAndDoubleTap(el,function(){
+      var has=DB.checkinLogs.some(function(l){return Number(l.checkinId)===ckId&&l.date===date});
+      if(has){openCheckinNoteModal(ckId,date);}
+      else{addCheckinOnDate(ckId,date);}
+    },function(){removeCheckinOnDate(ckId,date)});
   });
   view.querySelectorAll('[data-ckedit]').forEach(function(b){b.onclick=function(){editCheckinModal(Number(b.dataset.ckedit))}});
   view.querySelectorAll('[data-ckdel]').forEach(function(b){b.onclick=function(){
@@ -887,8 +897,8 @@ function renderCheckins(){
   };
 }
 function checkinCalendarHTML(id){
-  var logs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)===Number(id)}).map(function(l){return l.date});
-  var set={};logs.forEach(function(d){set[d]=1});
+  var logs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)===Number(id)});
+  var set={};logs.forEach(function(l){set[l.date]=l});
   var y=new Date().getFullYear(),m=new Date().getMonth();
   var first=new Date(y,m,1),sp=(first.getDay()+6)%7,days=new Date(y,m+1,0).getDate();
   var cells='';['一','二','三','四','五','六','日'].forEach(function(w){cells+='<div class="w">'+w+'</div>'});
@@ -896,14 +906,38 @@ function checkinCalendarHTML(id){
   var td=today();
   for(var d=1;d<=days;d++){
     var ds=y+'-'+pad(m+1)+'-'+pad(d);
-    cells+='<div class="d'+(set[ds]?' has':'')+(ds===td?' today':'')+'" data-ckdate="'+ds+'" data-ckid="'+id+'">'+d+'</div>';
+    var hasLog=!!set[ds];
+    var hasNote=hasLog&&set[ds].note;
+    cells+='<div class="d'+(hasLog?' has':'')+(ds===td?' today':'')+(hasNote?' has-note':'')+'" data-ckdate="'+ds+'" data-ckid="'+id+'">'+d+'</div>';
   }
-  return '<div class="muted" style="margin-bottom:10px">共 '+logs.length+' 次打卡 · 点日期补卡 · 双击取消</div><div class="cal">'+cells+'</div>';
+  var noteCount=logs.filter(function(l){return l.note}).length;
+  return '<div class="muted" style="margin-bottom:10px">共 '+logs.length+' 次打卡'+(noteCount?' · '+noteCount+' 条备注':'')+' · 点日期补卡 · 点已打卡日期写备注 · 双击取消</div><div class="cal">'+cells+'</div>';
+}
+/* 打卡备注编辑弹窗 */
+function openCheckinNoteModal(checkinId,date){
+  var log=DB.checkinLogs.find(function(l){return Number(l.checkinId)===Number(checkinId)&&l.date===date});
+  if(!log){toast('这天没有打卡记录');return}
+  var ck=DB.checkins.find(function(x){return Number(x.id)===Number(checkinId)});
+  var ckName=ck?ck.name:'';
+  var body='';
+  body+='<div class="muted" style="margin-bottom:10px">'+esc(ckName)+' · '+esc(date)+'</div>';
+  body+='<label class="fld">打卡备注（可留空）</label>';
+  body+='<textarea id="ck-note-input" placeholder="今天画了什么？感受如何？" style="min-height:100px">'+esc(log.note||'')+'</textarea>';
+  openModal('打卡备注',body,'<button class="btn o" data-close>取消</button><button class="btn" id="ck-note-save">保存</button>');
+  document.getElementById('ck-note-save').onclick=function(){
+    var v=document.getElementById('ck-note-input').value.trim();
+    log.note=v||'';
+    idbPut('checkinLogs',log).then(function(){
+      closeModal();
+      toast(v?'备注已保存':'备注已清空');
+      renderCheckins();
+    });
+  };
 }
 function addCheckinOnDate(checkinId,date){
   if(date>today()){toast('不能给未来日期打卡');return}
   if(DB.checkinLogs.some(function(l){return Number(l.checkinId)===Number(checkinId)&&l.date===date})){toast('这天已打卡');return}
-  var log={id:uid(),checkinId:checkinId,date:date};
+  var log={id:uid(),checkinId:checkinId,date:date,note:''};
   DB.checkinLogs.push(log);
   idbPut('checkinLogs',log).then(function(){toast('已补卡 '+date);renderCheckins();});
 }
@@ -922,10 +956,15 @@ function toggleCheckinMonth(id){
 }
 function doCheckin(id){
   var t=today();
-  if(DB.checkinLogs.some(function(l){return Number(l.checkinId)===Number(id)&&l.date===t})){toast('今天已打卡，双击可取消');return;}
-  var log={id:uid(),checkinId:id,date:t};
+  var existing=DB.checkinLogs.find(function(l){return Number(l.checkinId)===Number(id)&&l.date===t});
+  if(existing){
+    /* 今天已打卡 → 打开备注编辑 */
+    openCheckinNoteModal(id,t);
+    return;
+  }
+  var log={id:uid(),checkinId:id,date:t,note:''};
   DB.checkinLogs.push(log);
-  idbPut('checkinLogs',log).then(function(){toast('打卡成功');renderCheckins();});
+  idbPut('checkinLogs',log).then(function(){toast('打卡成功，再点一次可写备注');renderCheckins();});
 }
 function cancelCheckin(id){
   var t=today();
@@ -1223,7 +1262,7 @@ function renderSettings(){
   var totalImgs=0;
   DB.works.forEach(function(w){totalImgs+=workImgCount(w)});
   h+='<div class="card"><h3>存储</h3><div class="muted">作品 '+DB.works.length+' 个 · 图片 '+totalImgs+' 张<br>使用 IndexedDB，容量大，可存原图</div></div>';
-  h+='<div class="card"><h3>说明</h3><div class="muted">图片按原图保存。导出文件为 JSON 格式，包含所有分类、作品、图片、打卡、计划、卡片背景。换手机时用「导入数据」恢复即可。</div></div>';
+  h+='<div class="card"><h3>说明</h3><div class="muted">图片按原图保存。导出文件为 JSON 格式，包含所有分类、作品、图片、打卡、打卡备注、计划、卡片背景。换手机时用「导入数据」恢复即可。</div></div>';
   view.innerHTML=h;
   document.getElementById('addCat').onclick=addCategoryModal;
   document.getElementById('expBtn').onclick=exportAll;
