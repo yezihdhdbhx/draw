@@ -8,7 +8,7 @@
 <meta http-equiv="Expires" content="0">
 <title>draw</title>
 <script>
-/* 修复“网页无法加载”：注销旧 Service Worker 并清空缓存（如不需要 SW 可一直保留此段） */
+/* 修复“网页无法加载”：注销旧 Service Worker 并清空缓存 */
 if('serviceWorker' in navigator){
   navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});}).catch(function(){});
 }
@@ -1073,13 +1073,53 @@ function renderSettings(){
     });
   }});
 }
+
+/* ===== 导出：优先系统分享，可存到“文件” ===== */
 function exportAll(){
-  var pack={version:1,exportedAt:new Date().toISOString(),categories:DB.categories,works:DB.works,checkins:DB.checkins,checkinLogs:DB.checkinLogs,plans:DB.plans,todayBgImg:todayBgImg};
-  var blob=new Blob([JSON.stringify(pack)],{type:'application/json'});
-  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='draw-backup-'+today()+'.json';a.click();toast('已导出');
+  var pack={
+    version:1,
+    exportedAt:new Date().toISOString(),
+    categories:DB.categories,
+    works:DB.works,
+    checkins:DB.checkins,
+    checkinLogs:DB.checkinLogs,
+    plans:DB.plans,
+    todayBgImg:todayBgImg
+  };
+  var json=JSON.stringify(pack);
+  var fileName='draw-backup-'+today()+'.json';
+  var file=null;
+  try{file=new File([json],fileName,{type:'application/json'});}catch(e){}
+
+  if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
+    navigator.share({
+      files:[file],
+      title:'画集备份',
+      text:'导出数据'
+    }).then(function(){
+      toast('请选择“存储到文件/保存到文件”');
+    }).catch(function(err){
+      if(err&&err.name==='AbortError')return;
+      fallbackDownload(json,fileName);
+    });
+    return;
+  }
+  fallbackDownload(json,fileName);
 }
+function fallbackDownload(json,fileName){
+  var blob=new Blob([json],{type:'application/json'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;a.download=fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},1500);
+  toast('已触发下载，请查看通知栏 / 下载 / 文件App');
+}
+
 function importAll(){
-  var inp=document.createElement('input');inp.type='file';inp.accept='.json';
+  var inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';
   inp.onchange=function(e){
     var f=e.target.files[0];if(!f)return;
     if(!confirm('导入会覆盖当前所有数据，确定继续？'))return;
