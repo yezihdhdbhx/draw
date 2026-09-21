@@ -276,21 +276,34 @@ function workCreatedAt(w){if(w.createdAt)return w.createdAt;
   if(w.stages&&w.stages.length&&w.stages[0].date)return new Date(w.stages[0].date+'T00:00:00').getTime();return null;}
 function getAllWorkImages(w){var a=[];(w.stages||[]).forEach(function(s){(s.images||[]).forEach(function(im){a.push(im)})});return a;}
 
+/* ===== 节点分配：装不下就顺到下一个节点，绝不拆分作品 ===== */
 function getAutoAssignedWorks(plan,allWorks){
   var assigned=plan.nodes.map(function(n){return{node:n,works:[],totalMin:0};});
   var targetWorks=allWorks.filter(function(w){return String(w.planId)===String(plan.id);});
   targetWorks.sort(function(a,b){return (workCreatedAt(a)||0)-(workCreatedAt(b)||0);});
   var ci=0,acc=0;
   targetWorks.forEach(function(w){
-    var wt=workTotal(w);
-    if(ci<assigned.length){
-      var node=assigned[ci],target=(node.node.hours||0)*60;
-      if(acc>0&&target>0&&acc+wt>target){ci++;acc=0;if(ci>=assigned.length)return;}
-      assigned[ci].works.push(w);assigned[ci].totalMin+=wt;acc+=wt;
+    var wTotal=workTotal(w);
+    if(ci>=assigned.length)return;
+    // 从当前节点开始，往后找一个"能装下这张图"的节点
+    while(ci<assigned.length){
+      var nodeTargetMin=(assigned[ci].node.hours||0)*60;
+      var isLast=(ci===assigned.length-1);
+      if(isLast)break; // 最后一个节点是兜底，无论多大都放
+      // 空节点：目标时长 >= 这张图 → 装得下
+      if(assigned[ci].works.length===0 && nodeTargetMin>=wTotal) break;
+      // 非空节点：当前累计 + 这张图 <= 目标 → 装得下
+      if(assigned[ci].works.length>0 && nodeTargetMin>0 && acc+wTotal<=nodeTargetMin) break;
+      // 装不下 → 顺到下一个节点
+      ci++;acc=0;
     }
+    assigned[ci].works.push(w);
+    assigned[ci].totalMin+=wTotal;
+    acc+=wTotal;
   });
   return assigned;
 }
+
 function starsHTML(rating,small,nomb){
   var cls='stars'+(small?' sm':'')+(nomb?' nomb':'');
   var h='<div class="'+cls+'">';
@@ -319,7 +332,6 @@ function go(tab){
 }
 document.querySelectorAll('.tab').forEach(function(t){t.onclick=function(){go(t.dataset.t)}});
 
-/* 返回键：优先关弹窗，再按层级返回 */
 backEl.onclick=function(){
   var modalRoot=document.getElementById('modalRoot');
   if(modalRoot&&modalRoot.innerHTML){
@@ -531,7 +543,6 @@ function addWorkModal(work,category){
     });
   }
 
-  /* 新阶段图片预览 + 单张删除 */
   function renderNewPreview(){
     var p=document.getElementById('wf-prev');if(!p)return;
     p.innerHTML='';
@@ -611,7 +622,6 @@ function addWorkModal(work,category){
     }
   };
 
-  /* 取消 → 丢弃临时副本 */
   document.querySelectorAll('[data-close]').forEach(function(b){
     b.onclick=function(){
       state._editWorkId=null;state._editStages=null;
@@ -620,7 +630,7 @@ function addWorkModal(work,category){
   });
 }
 
-/* ===== 图片操作菜单（叠加在编辑阶段弹窗之上） ===== */
+/* ===== 图片操作菜单 ===== */
 function showImgActionMenu(imgs,idx,onReplace,onDelete){
   var old=document.getElementById('imgActMenu');if(old)old.remove();
   var m=document.createElement('div');
@@ -660,7 +670,7 @@ function showImgActionMenu(imgs,idx,onReplace,onDelete){
   };
 }
 
-/* ===== 编辑阶段（作用于临时 stages 数组，支持图片替换/删除/追加） ===== */
+/* ===== 编辑阶段（作用于临时 stages 数组） ===== */
 function openEditStageModal(stages,idx,work){
   var stage=stages[idx];if(!stage)return;
   var prevCum=idx===0?0:(stages[idx-1].cumulative||0);
@@ -714,7 +724,6 @@ function openEditStageModal(stages,idx,work){
     });
   };
 
-  /* 取消 → 关闭阶段弹窗，回编辑作品弹窗 */
   document.querySelectorAll('[data-close]').forEach(function(b){
     b.onclick=function(){
       closeModal();
@@ -932,7 +941,7 @@ function renderPlanDetail(){
   var targetMin=(p.totalHours||0)*60,pct=targetMin?Math.min(100,total/targetMin*100):0;
   var h='<div class="card"><div class="muted">总进度</div><div class="big" style="margin-top:4px">'+fmtDur(total)+' / '+p.totalHours+' 小时</div>'
     +'<div class="bar" style="height:10px;margin-top:8px"><i style="width:'+pct+'%"></i></div>'
-    +'<div class="muted" style="margin-top:6px">'+pct.toFixed(1)+'% · 作品已按时间自动分配至节点</div></div>';
+    +'<div class="muted" style="margin-top:6px">'+pct.toFixed(1)+'% · 作品已按节点时长自动顺延分配</div></div>';
   var nodes=p.nodes||[];
   if(nodes.length){
     if(state.nodeIdx<0)state.nodeIdx=0;
