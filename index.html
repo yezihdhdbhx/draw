@@ -8,7 +8,6 @@
 <meta http-equiv="Expires" content="0">
 <title>draw</title>
 <script>
-/* 修复“网页无法加载”：注销旧 Service Worker 并清空缓存 */
 if('serviceWorker' in navigator){
   navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});}).catch(function(){});
 }
@@ -168,6 +167,10 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .newthumb{position:relative;aspect-ratio:3/4;background:#d8d8dd;border-radius:8px;overflow:hidden}
 .newthumb img{width:100%;height:100%;object-fit:cover;display:block}
 .newthumb .rm{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center}
+.edit-stage-imgs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.edit-stage-imgs .esi-cell{aspect-ratio:1;background:#d8d8dd;border-radius:8px;overflow:hidden;cursor:pointer;position:relative}
+.edit-stage-imgs .esi-cell img{width:100%;height:100%;object-fit:cover;display:block}
+.edit-stage-imgs .esi-cell::after{content:'✎';position:absolute;bottom:2px;right:4px;color:#fff;font-size:13px;text-shadow:0 1px 3px rgba(0,0,0,.7)}
 .img-viewer-mask{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:300;display:none;align-items:center;justify-content:center;user-select:none;overflow:hidden}
 .img-viewer-mask.on{display:flex}
 .img-viewer-mask img{max-width:100%;max-height:100%;object-fit:contain;display:block}
@@ -315,7 +318,15 @@ function go(tab){
   else{actionEl.style.display='none';renderSettings()}
 }
 document.querySelectorAll('.tab').forEach(function(t){t.onclick=function(){go(t.dataset.t)}});
+
+/* 返回键：优先关弹窗，再按层级返回 */
 backEl.onclick=function(){
+  var modalRoot=document.getElementById('modalRoot');
+  if(modalRoot&&modalRoot.innerHTML){
+    closeModal();
+    state._editWorkId=null;state._editStages=null;
+    return;
+  }
   if(state.tab==='planDetail'){state.planId=null;state.nodeIdx=0;go('checkins')}
   else if(state.workId){state.workId=null;state.workImgIdx=0;state._editWorkId=null;state._editStages=null;renderCategoryView()}
   else if(state.category){go('collections')}
@@ -429,15 +440,12 @@ function addCategoryModal(){
   };
 }
 
-/* ===== 添加/编辑作品（编辑时使用临时副本） ===== */
+/* ===== 添加/编辑作品（编辑时使用临时副本，取消不生效） ===== */
 function addWorkModal(work,category){
   var editing=!!work;
   var rating=work?work.rating:0;
   var newFiles=[];
-  var defH=editing?'':'1';
-  var defM=editing?'':'30';
-
-  /* 编辑模式：使用临时副本，取消不生效 */
+  var defH=editing?'':'1',defM=editing?'':'30';
   var editStages=null;
   if(editing){
     if(state._editWorkId===work.id && state._editStages){
@@ -471,7 +479,7 @@ function addWorkModal(work,category){
         stage.images.forEach(function(img,i){body+='<img src="'+img+'" data-stageimg="'+idx+'_'+i+'">'});
         body+='</div>';
       }
-      body+='<div class="stage-btn-row"><button class="btn o" id="stage-edit-btn-'+idx+'" type="button">编辑</button>'
+      body+='<div class="stage-btn-row"><button class="btn o" id="stage-edit-btn-'+idx+'" type="button">编辑 / 换图</button>'
         +'<button class="btn o" id="stage-del-btn-'+idx+'" type="button" style="color:#c33">删除</button></div></div>';
     });
     body+='</div>';
@@ -491,7 +499,6 @@ function addWorkModal(work,category){
     s.onclick=function(){rating=Number(s.dataset.v);starsEl.querySelectorAll('span').forEach(function(x){x.classList.toggle('on',Number(x.dataset.v)<=rating)});};
   });
 
-  /* 已有阶段缩略图查看大图 */
   document.querySelectorAll('[data-stageimg]').forEach(function(el){
     el.onclick=function(e){
       e.stopPropagation();
@@ -501,7 +508,6 @@ function addWorkModal(work,category){
     };
   });
 
-  /* 已有阶段的编辑/删除（作用于临时副本） */
   if(editing&&editStages){
     editStages.forEach(function(stage,idx){
       var eb=document.getElementById('stage-edit-btn-'+idx);
@@ -525,7 +531,7 @@ function addWorkModal(work,category){
     });
   }
 
-  /* 新阶段图片选择 + 单张删除 */
+  /* 新阶段图片预览 + 单张删除 */
   function renderNewPreview(){
     var p=document.getElementById('wf-prev');if(!p)return;
     p.innerHTML='';
@@ -541,16 +547,14 @@ function addWorkModal(work,category){
     p.querySelectorAll('[data-rm]').forEach(function(b){
       b.onclick=function(ev){
         ev.preventDefault();ev.stopPropagation();
-        var i=Number(b.dataset.rm);
-        newFiles.splice(i,1);
+        newFiles.splice(Number(b.dataset.rm),1);
         renderNewPreview();
       };
     });
   }
   var fileEl=document.getElementById('wf-file');
   if(fileEl)fileEl.onchange=function(e){
-    var added=[].slice.call(e.target.files||[]);
-    newFiles=newFiles.concat(added);
+    newFiles=newFiles.concat([].slice.call(e.target.files||[]));
     renderNewPreview();
     try{e.target.value='';}catch(_){}
   };
@@ -562,7 +566,6 @@ function addWorkModal(work,category){
     if(planSel&&planSel.value)planId=Number(planSel.value);
     if(editing){
       work.category=cat;work.note=note;work.planId=planId;work.rating=rating;
-      /* 先把临时副本写回（含删除/编辑） */
       work.stages=editStages.map(function(s){return {images:(s.images||[]).slice(),cumulative:s.cumulative,date:s.date,note:s.note};});
 
       if(newFiles.length){
@@ -608,7 +611,7 @@ function addWorkModal(work,category){
     }
   };
 
-  /* 取消：丢弃临时编辑 */
+  /* 取消 → 丢弃临时副本 */
   document.querySelectorAll('[data-close]').forEach(function(b){
     b.onclick=function(){
       state._editWorkId=null;state._editStages=null;
@@ -617,18 +620,108 @@ function addWorkModal(work,category){
   });
 }
 
-/* ===== 编辑阶段（作用于传入的 stages 数组，仅暂存） ===== */
+/* ===== 图片操作菜单（叠加在编辑阶段弹窗之上） ===== */
+function showImgActionMenu(imgs,idx,onReplace,onDelete){
+  var old=document.getElementById('imgActMenu');if(old)old.remove();
+  var m=document.createElement('div');
+  m.id='imgActMenu';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:250;display:flex;align-items:flex-end;justify-content:center';
+  var inner=document.createElement('div');
+  inner.style.cssText='background:#fff;width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:16px';
+  inner.innerHTML='<div style="font-weight:600;margin-bottom:12px;text-align:center">图片操作（'+(idx+1)+'/'+imgs.length+'）</div>'
+    +'<button class="btn o" id="iamView" style="margin-bottom:10px">查看大图</button>'
+    +'<button class="btn o" id="iamReplace" style="margin-bottom:10px">替换这张图片</button>'
+    +'<button class="btn o" id="iamDelete" style="color:#c33;margin-bottom:10px">删除这张图片</button>'
+    +'<button class="btn" id="iamCancel">取消</button>';
+  m.appendChild(inner);
+  document.body.appendChild(m);
+  function close(){m.remove();}
+  m.addEventListener('click',function(e){if(e.target===m)close();});
+  inner.querySelector('#iamCancel').onclick=close;
+  inner.querySelector('#iamView').onclick=function(){
+    close();
+    openImageViewer(imgs,idx,false);
+  };
+  inner.querySelector('#iamReplace').onclick=function(){
+    close();
+    var inp=document.createElement('input');
+    inp.type='file';inp.accept='image/*';
+    inp.onchange=function(e){
+      var f=e.target.files[0];if(!f)return;
+      processImage(f).then(function(d){onReplace(d);toast('已替换，记得点“保存”');});
+    };
+    inp.click();
+  };
+  inner.querySelector('#iamDelete').onclick=function(){
+    close();
+    if(!confirm('删除这张图片？'))return;
+    onDelete();
+    toast('已删除，记得点“保存”');
+  };
+}
+
+/* ===== 编辑阶段（作用于临时 stages 数组，支持图片替换/删除/追加） ===== */
 function openEditStageModal(stages,idx,work){
   var stage=stages[idx];if(!stage)return;
   var prevCum=idx===0?0:(stages[idx-1].cumulative||0);
   var oldDur=(stage.cumulative||0)-prevCum;
   var oldH=Math.floor(oldDur/60),oldM=oldDur%60;
+  var editImages=(stage.images||[]).slice();
+
   var body='<label class="fld">本阶段用时（不能小于原来，可留空不改）</label>'
     +'<div class="dur-row"><input type="number" id="edit-h" min="0" placeholder="时" value="'+oldH+'"><span class="lbl">时</span><input type="number" id="edit-m" min="0" max="59" placeholder="分" value="'+oldM+'"><span class="lbl">分</span></div>'
     +'<div class="muted" style="margin-top:-6px;margin-bottom:12px">原用时：'+fmtDur(oldDur)+'</div>'
     +'<label class="fld">日期</label><input type="date" id="edit-date" value="'+(stage.date||today())+'">'
-    +'<label class="fld">备注</label><textarea id="edit-note">'+esc(stage.note||'')+'</textarea>';
+    +'<label class="fld">备注</label><textarea id="edit-note">'+esc(stage.note||'')+'</textarea>'
+    +'<label class="fld">阶段图片（点图片可替换 / 删除 / 查看大图）</label>'
+    +'<div id="edit-imgs-wrap"></div>'
+    +'<label class="fld" style="margin-top:8px">追加图片（可多选）</label><input type="file" id="edit-add-img" accept="image/*" multiple>';
   openModal('编辑阶段 '+(idx+1),body,'<button class="btn o" data-close>取消</button><button class="btn" id="edit-save">保存</button>');
+
+  function refreshImgArea(){
+    var wrap=document.getElementById('edit-imgs-wrap');if(!wrap)return;
+    if(editImages.length){
+      var h='<div class="edit-stage-imgs">';
+      editImages.forEach(function(img,i){h+='<div class="esi-cell"><img src="'+img+'" data-esi="'+i+'"></div>'});
+      h+='</div>';
+      wrap.innerHTML=h;
+      wrap.querySelectorAll('[data-esi]').forEach(function(el){
+        el.onclick=function(e){
+          e.stopPropagation();
+          var i=Number(el.dataset.esi);
+          showImgActionMenu(editImages,i,
+            function(newImg){editImages[i]=newImg;refreshImgArea();},
+            function(){editImages.splice(i,1);refreshImgArea();}
+          );
+        };
+      });
+    }else{
+      wrap.innerHTML='<div class="muted" style="margin-bottom:8px">暂无图片</div>';
+    }
+  }
+  refreshImgArea();
+
+  var af=document.getElementById('edit-add-img');
+  if(af)af.onchange=function(e){
+    var files=[].slice.call(e.target.files||[]);
+    if(!files.length)return;
+    var done=0;
+    files.forEach(function(f){
+      processImage(f).then(function(d){
+        editImages.push(d);done++;
+        if(done===files.length)refreshImgArea();
+      });
+    });
+  };
+
+  /* 取消 → 关闭阶段弹窗，回编辑作品弹窗 */
+  document.querySelectorAll('[data-close]').forEach(function(b){
+    b.onclick=function(){
+      closeModal();
+      setTimeout(function(){addWorkModal(work,work.category);},100);
+    };
+  });
+
   document.getElementById('edit-save').onclick=function(){
     var hVal=document.getElementById('edit-h').value.trim(),mVal=document.getElementById('edit-m').value.trim();
     var newDate=document.getElementById('edit-date').value,newNote=document.getElementById('edit-note').value.trim();
@@ -641,11 +734,11 @@ function openEditStageModal(stages,idx,work){
       for(var i=idx+1;i<stages.length;i++)stages[i].cumulative=(stages[i].cumulative||0)+diff;
     }
     stage.date=newDate;stage.note=newNote;
+    stage.images=editImages.slice();
     toast('阶段已修改，点“保存”生效');
     closeModal();
-    setTimeout(function(){closeModal();addWorkModal(work,work.category);},100);
+    setTimeout(function(){addWorkModal(work,work.category);},100);
   };
-  /* 取消编辑阶段不清空临时副本 */
 }
 
 /* ===== 打卡 + 计划 ===== */
@@ -924,10 +1017,8 @@ function renderStats(){
   var h2='<div class="seg">';
   [['week','周'],['month','月'],['year','年']].forEach(function(r){h2+='<button data-r="'+r[0]+'"'+(state.statRange===r[0]?' class="on"':'')+'>'+r[1]+'</button>';});
   h2+='</div>';
-
   var now=new Date(),y=now.getFullYear(),m=now.getMonth(),off=state.statOffset||0;
-  var pts=[],total=0,chartTitle='',periodLabel='',avgLabel='',avgVal=0,avgNote='';
-  var isCurrent=off===0;
+  var pts=[],total=0,chartTitle='',periodLabel='',avgLabel='',avgVal=0,avgNote='',isCurrent=off===0;
 
   if(state.statRange==='week'){
     chartTitle='每日时长';
@@ -1211,29 +1302,15 @@ function renderSettings(){
   }});
 }
 
-/* ===== 导出：优先系统分享，可存到“文件” ===== */
+/* ===== 导出 ===== */
 function exportAll(){
-  var pack={
-    version:1,
-    exportedAt:new Date().toISOString(),
-    categories:DB.categories,
-    works:DB.works,
-    checkins:DB.checkins,
-    checkinLogs:DB.checkinLogs,
-    plans:DB.plans,
-    todayBgImg:todayBgImg
-  };
+  var pack={version:1,exportedAt:new Date().toISOString(),categories:DB.categories,works:DB.works,checkins:DB.checkins,checkinLogs:DB.checkinLogs,plans:DB.plans,todayBgImg:todayBgImg};
   var json=JSON.stringify(pack);
   var fileName='draw-backup-'+today()+'.json';
   var file=null;
   try{file=new File([json],fileName,{type:'application/json'});}catch(e){}
-
   if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
-    navigator.share({
-      files:[file],
-      title:'画集备份',
-      text:'导出数据'
-    }).then(function(){
+    navigator.share({files:[file],title:'画集备份',text:'导出数据'}).then(function(){
       toast('请选择“存储到文件/保存到文件”');
     }).catch(function(err){
       if(err&&err.name==='AbortError')return;
@@ -1254,7 +1331,6 @@ function fallbackDownload(json,fileName){
   setTimeout(function(){URL.revokeObjectURL(url);},1500);
   toast('已触发下载，请查看通知栏 / 下载 / 文件App');
 }
-
 function importAll(){
   var inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';
   inp.onchange=function(e){
