@@ -8,9 +8,7 @@
 <meta http-equiv="Expires" content="0">
 <title>draw</title>
 <script>
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});}).catch(function(){});
-}
+if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});}).catch(function(){});}
 if(window.caches&&caches.keys){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});}).catch(function(){});}
 </script>
 <style>
@@ -276,25 +274,66 @@ function workCreatedAt(w){if(w.createdAt)return w.createdAt;
   if(w.stages&&w.stages.length&&w.stages[0].date)return new Date(w.stages[0].date+'T00:00:00').getTime();return null;}
 function getAllWorkImages(w){var a=[];(w.stages||[]).forEach(function(s){(s.images||[]).forEach(function(im){a.push(im)})});return a;}
 
-/* ===== 节点分配：按顺序放入，当前节点已有内容且加上这张图超标 → 顺到下一个节点 ===== */
+/* ===== 节点分配：按时间轴顺延，一个作品可跨多个节点 =====
+   思路：
+   1. 先把所有节点按目标时长在计划时间轴上排出区间 [start,end)
+   2. 每个作品也占据时间轴上的一段 [wStart,wEnd)
+   3. 对作品的每个阶段，取其绝对时间区间 [absStart,absEnd)
+   4. 哪个节点区间与它重叠，就把这个阶段的图片放进那个节点
+   5. 跨节点的阶段，图片会同时出现在多个节点里
+*/
 function getAutoAssignedWorks(plan,allWorks){
-  var assigned=plan.nodes.map(function(n){return{node:n,works:[],totalMin:0};});
-  var targetWorks=allWorks.filter(function(w){return String(w.planId)===String(plan.id);});
-  targetWorks.sort(function(a,b){return (workCreatedAt(a)||0)-(workCreatedAt(b)||0);});
-  var ci=0,acc=0;
-  targetWorks.forEach(function(w){
-    var wTotal=workTotal(w);
-    if(ci>=assigned.length)return;
-    var nodeTargetMin=(assigned[ci].node.hours||0)*60;
-    // 只有当前节点"已经有作品"，并且加上这张图会超标 → 顺到下一个节点
-    // 当前节点是空的时候，无论这张图多大都放进去，避免前面节点全空
-    if(assigned[ci].works.length>0 && nodeTargetMin>0 && acc+wTotal>nodeTargetMin){
-      if(ci<assigned.length-1){ci++;acc=0;}
-    }
-    assigned[ci].works.push(w);
-    assigned[ci].totalMin+=wTotal;
-    acc+=wTotal;
+  var nodes = plan.nodes || [];
+  var assigned = nodes.map(function(n){
+    return { node:n, works:[], totalMin:0, images:[], workMap:{} };
   });
+  // 节点在计划时间轴上的区间
+  var nodeRanges = [];
+  var cursor = 0;
+  nodes.forEach(function(n){
+    var hMin = (n.hours||0)*60;
+    nodeRanges.push({ start:cursor, end:cursor+hMin });
+    cursor += hMin;
+  });
+
+  var targetWorks = allWorks.filter(function(w){return String(w.planId)===String(plan.id);});
+  targetWorks.sort(function(a,b){return (workCreatedAt(a)||0)-(workCreatedAt(b)||0);});
+
+  var workCursor = 0; // 作品在计划时间轴上的起点
+  targetWorks.forEach(function(w){
+    var wTotal = workTotal(w);
+    var stageStart = 0;
+    (w.stages||[]).forEach(function(s){
+      var stageEnd = s.cumulative || 0;
+      var absStart = workCursor + stageStart;
+      var absEnd = workCursor + stageEnd;
+      var stageImgs = s.images || [];
+
+      nodeRanges.forEach(function(nr, idx){
+        var ovStart = Math.max(absStart, nr.start);
+        var ovEnd = Math.min(absEnd, nr.end);
+        if(ovEnd > ovStart){
+          // 这个阶段与节点 idx 有重叠
+          assigned[idx].totalMin += (ovEnd - ovStart);
+          // 图片去重后加入
+          stageImgs.forEach(function(img){
+            if(assigned[idx].images.indexOf(img) < 0){
+              assigned[idx].images.push(img);
+            }
+          });
+          // 作品去重后加入
+          if(!assigned[idx].workMap[w.id]){
+            assigned[idx].workMap[w.id] = true;
+            assigned[idx].works.push(w);
+          }
+        }
+      });
+      stageStart = stageEnd;
+    });
+    workCursor += wTotal;
+  });
+
+  assigned.forEach(function(a){ delete a.workMap; });
   return assigned;
 }
 
@@ -325,14 +364,9 @@ function go(tab){
   else{actionEl.style.display='none';renderSettings()}
 }
 document.querySelectorAll('.tab').forEach(function(t){t.onclick=function(){go(t.dataset.t)}});
-
 backEl.onclick=function(){
   var modalRoot=document.getElementById('modalRoot');
-  if(modalRoot&&modalRoot.innerHTML){
-    closeModal();
-    state._editWorkId=null;state._editStages=null;
-    return;
-  }
+  if(modalRoot&&modalRoot.innerHTML){closeModal();state._editWorkId=null;state._editStages=null;return;}
   if(state.tab==='planDetail'){state.planId=null;state.nodeIdx=0;go('checkins')}
   else if(state.workId){state.workId=null;state.workImgIdx=0;state._editWorkId=null;state._editStages=null;renderCategoryView()}
   else if(state.category){go('collections')}
@@ -386,17 +420,15 @@ function renderWorkView(){
     +starsHTML(w.rating||0,false,true)+'<button class="work-menu-btn" id="workMenu">⋯</button></div>';
   var ca=workCreatedAt(w);
   if(ca)h+='<div class="muted" style="margin-top:10px">添加于 '+fmtTs(ca)+'</div>';
-  if(w.planId){var p=DB.plans.find(function(x){return Number(x.id)===Number(w.planId)});if(p)h+='<div class="muted" style="margin-top:4px">计划：'+esc(p.name)+'（自动分配）</div>';}
+  if(w.planId){var p=DB.plans.find(function(x){return Number(x.id)===Number(w.planId)});if(p)h+='<div class="muted" style="margin-top:4px">计划：'+esc(p.name)+'（按时间顺延）</div>';}
   if(w.note)h+='<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f2f2f5;white-space:pre-wrap">'+esc(w.note)+'</div>';
   h+='</div>';
-
   var imgList=[];
   (w.stages||[]).forEach(function(s,i){
     var prev=i===0?0:(w.stages[i-1].cumulative||0),dur=(s.cumulative||0)-prev;
     (s.images||[]).forEach(function(img){imgList.push({img:img,stageIdx:i,dur:dur,cumulative:s.cumulative,note:s.note||'',date:s.date||''});});
   });
   imgList.reverse();
-
   if(imgList.length){
     if(state.workImgIdx<0)state.workImgIdx=0;
     if(state.workImgIdx>imgList.length-1)state.workImgIdx=imgList.length-1;
@@ -409,13 +441,11 @@ function renderWorkView(){
     h+='</div><div class="img-big"><img src="'+cur.img+'" id="workBigImg" title="点击查看大图"></div></div>';
   }else h+='<div class="empty">还没有图片</div>';
   view.innerHTML=h;
-
   var prevBtn=document.getElementById('imgPrev'),nextBtn=document.getElementById('imgNext');
   if(prevBtn)prevBtn.onclick=function(){if(state.workImgIdx>0){state.workImgIdx--;renderWorkView();}};
   if(nextBtn)nextBtn.onclick=function(){if(state.workImgIdx<imgList.length-1){state.workImgIdx++;renderWorkView();}};
   var big=document.getElementById('workBigImg');
   if(big)big.onclick=function(){openImageViewer(imgList.map(function(x){return x.img}),state.workImgIdx,true);};
-
   var starsEl=view.querySelector('.stars');
   starsEl.querySelectorAll('span').forEach(function(s){
     s.onclick=function(){w.rating=Number(s.dataset.v);idbPut('works',w).then(function(){renderWorkView();});};
@@ -448,37 +478,30 @@ function addCategoryModal(){
 
 /* ===== 添加/编辑作品 ===== */
 function addWorkModal(work,category){
-  var editing=!!work;
-  var rating=work?work.rating:0;
-  var newFiles=[];
+  var editing=!!work,rating=work?work.rating:0,newFiles=[];
   var defH=editing?'':'1',defM=editing?'':'30';
   var editStages=null;
   if(editing){
-    if(state._editWorkId===work.id && state._editStages){
-      editStages=state._editStages;
-    }else{
+    if(state._editWorkId===work.id && state._editStages){editStages=state._editStages;}
+    else{
       try{editStages=JSON.parse(JSON.stringify(work.stages||[]));}
       catch(e){editStages=(work.stages||[]).map(function(s){return {images:(s.images||[]).slice(),cumulative:s.cumulative,date:s.date,note:s.note};});}
-      state._editWorkId=work.id;
-      state._editStages=editStages;
+      state._editWorkId=work.id;state._editStages=editStages;
     }
   }
-
   var body='<label class="fld">分类</label><select id="wf-cat">';
   DB.categories.forEach(function(c){body+='<option value="'+esc(c.name)+'"'+(c.name===category?' selected':'')+'>'+esc(c.name)+'</option>'});
   body+='</select><label class="fld">评分（必填）</label>'+starsHTML(rating,false).replace('class="stars"','class="stars" id="wf-stars"');
   if(DB.plans.length){
-    body+='<label class="fld">加入计划（可选，按时间自动分配节点）</label><select id="wf-plan"><option value="">不加入计划</option>';
+    body+='<label class="fld">加入计划（可选，按时间自动顺延到节点）</label><select id="wf-plan"><option value="">不加入计划</option>';
     DB.plans.forEach(function(p){body+='<option value="'+p.id+'"'+(work&&String(work.planId)===String(p.id)?' selected':'')+'>'+esc(p.name)+'</option>'});
     body+='</select>';
   }
   body+='<label class="fld">作品备注（可选）</label><textarea id="wf-note" placeholder="整体想法、感受">'+(work?esc(work.note||''):'')+'</textarea>';
-
   if(editing&&editStages&&editStages.length){
     body+='<div class="existing-stages"><div class="muted" style="margin-bottom:8px;font-weight:500">已有阶段（可编辑、删除；删除后需点“保存”才生效）</div>';
     editStages.forEach(function(stage,idx){
-      var prevCum=idx===0?0:(editStages[idx-1].cumulative||0);
-      var dur=(stage.cumulative||0)-prevCum;
+      var prevCum=idx===0?0:(editStages[idx-1].cumulative||0),dur=(stage.cumulative||0)-prevCum;
       body+='<div class="existing-stage-row"><div class="existing-stage-label">阶段 '+(idx+1)+' · '+fmtDur(dur)+' · 累计 '+fmtDur(stage.cumulative)+(stage.note?' · '+esc(stage.note):'')+'</div>';
       if(stage.images&&stage.images.length){
         body+='<div class="existing-stage-thumbs">';
@@ -504,7 +527,6 @@ function addWorkModal(work,category){
   starsEl.querySelectorAll('span').forEach(function(s){
     s.onclick=function(){rating=Number(s.dataset.v);starsEl.querySelectorAll('span').forEach(function(x){x.classList.toggle('on',Number(x.dataset.v)<=rating)});};
   });
-
   document.querySelectorAll('[data-stageimg]').forEach(function(el){
     el.onclick=function(e){
       e.stopPropagation();
@@ -513,36 +535,26 @@ function addWorkModal(work,category){
       openImageViewer(imgs,iIdx,false);
     };
   });
-
   if(editing&&editStages){
     editStages.forEach(function(stage,idx){
       var eb=document.getElementById('stage-edit-btn-'+idx);
-      if(eb)eb.onclick=function(e){
-        e.preventDefault();e.stopPropagation();
-        openEditStageModal(editStages,idx,work);
-      };
+      if(eb)eb.onclick=function(e){e.preventDefault();e.stopPropagation();openEditStageModal(editStages,idx,work);};
       var db=document.getElementById('stage-del-btn-'+idx);
       if(db)db.onclick=function(e){
         e.preventDefault();e.stopPropagation();
         if(!confirm('确定删除阶段 '+(idx+1)+'？删除后需点“保存”才生效。'))return;
         var removedDur=stageDurArr(editStages,idx);
         editStages.splice(idx,1);
-        for(var i=idx;i<editStages.length;i++){
-          editStages[i].cumulative=(editStages[i].cumulative||0)-removedDur;
-        }
-        toast('阶段已删除，点“保存”生效');
-        closeModal();
-        addWorkModal(work,work.category);
+        for(var i=idx;i<editStages.length;i++)editStages[i].cumulative=(editStages[i].cumulative||0)-removedDur;
+        toast('阶段已删除，点“保存”生效');closeModal();addWorkModal(work,work.category);
       };
     });
   }
-
   function renderNewPreview(){
     var p=document.getElementById('wf-prev');if(!p)return;
     p.innerHTML='';
     newFiles.forEach(function(f,i){
-      var d=document.createElement('div');
-      d.className='newthumb';
+      var d=document.createElement('div');d.className='newthumb';
       d.innerHTML='<img data-ph="'+i+'"><button class="rm" type="button" data-rm="'+i+'">×</button>';
       p.appendChild(d);
       var rd=new FileReader();
@@ -550,20 +562,11 @@ function addWorkModal(work,category){
       rd.readAsDataURL(f);
     });
     p.querySelectorAll('[data-rm]').forEach(function(b){
-      b.onclick=function(ev){
-        ev.preventDefault();ev.stopPropagation();
-        newFiles.splice(Number(b.dataset.rm),1);
-        renderNewPreview();
-      };
+      b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();newFiles.splice(Number(b.dataset.rm),1);renderNewPreview();};
     });
   }
   var fileEl=document.getElementById('wf-file');
-  if(fileEl)fileEl.onchange=function(e){
-    newFiles=newFiles.concat([].slice.call(e.target.files||[]));
-    renderNewPreview();
-    try{e.target.value='';}catch(_){}
-  };
-
+  if(fileEl)fileEl.onchange=function(e){newFiles=newFiles.concat([].slice.call(e.target.files||[]));renderNewPreview();try{e.target.value='';}catch(_){}};
   var planSel=document.getElementById('wf-plan');
   document.getElementById('wf-save').onclick=function(){
     if(!rating){toast('请先评分');return}
@@ -572,7 +575,6 @@ function addWorkModal(work,category){
     if(editing){
       work.category=cat;work.note=note;work.planId=planId;work.rating=rating;
       work.stages=editStages.map(function(s){return {images:(s.images||[]).slice(),cumulative:s.cumulative,date:s.date,note:s.note};});
-
       if(newFiles.length){
         var cum=(parseInt(document.getElementById('wf-h').value)||0)*60+(parseInt(document.getElementById('wf-m').value)||0);
         var date=document.getElementById('wf-date').value||today(),snote=document.getElementById('wf-snote').value.trim();
@@ -584,18 +586,12 @@ function addWorkModal(work,category){
             newImages.push(d);done++;
             if(done===newFiles.length){
               work.stages.push({images:newImages,cumulative:cum,date:date,note:snote});
-              idbPut('works',work).then(function(){
-                state._editWorkId=null;state._editStages=null;
-                closeModal();toast('已保存');renderWorkView();
-              });
+              idbPut('works',work).then(function(){state._editWorkId=null;state._editStages=null;closeModal();toast('已保存');renderWorkView();});
             }
           });
         });
       }else{
-        idbPut('works',work).then(function(){
-          state._editWorkId=null;state._editStages=null;
-          closeModal();toast('已保存');renderWorkView();
-        });
+        idbPut('works',work).then(function(){state._editWorkId=null;state._editStages=null;closeModal();toast('已保存');renderWorkView();});
       }
     }else{
       if(!newFiles.length){toast('请选择图片');return}
@@ -615,20 +611,15 @@ function addWorkModal(work,category){
       });
     }
   };
-
   document.querySelectorAll('[data-close]').forEach(function(b){
-    b.onclick=function(){
-      state._editWorkId=null;state._editStages=null;
-      closeModal();
-    };
+    b.onclick=function(){state._editWorkId=null;state._editStages=null;closeModal();};
   });
 }
 
 /* ===== 图片操作菜单 ===== */
 function showImgActionMenu(imgs,idx,onReplace,onDelete){
   var old=document.getElementById('imgActMenu');if(old)old.remove();
-  var m=document.createElement('div');
-  m.id='imgActMenu';
+  var m=document.createElement('div');m.id='imgActMenu';
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:250;display:flex;align-items:flex-end;justify-content:center';
   var inner=document.createElement('div');
   inner.style.cssText='background:#fff;width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:16px';
@@ -637,31 +628,18 @@ function showImgActionMenu(imgs,idx,onReplace,onDelete){
     +'<button class="btn o" id="iamReplace" style="margin-bottom:10px">替换这张图片</button>'
     +'<button class="btn o" id="iamDelete" style="color:#c33;margin-bottom:10px">删除这张图片</button>'
     +'<button class="btn" id="iamCancel">取消</button>';
-  m.appendChild(inner);
-  document.body.appendChild(m);
+  m.appendChild(inner);document.body.appendChild(m);
   function close(){m.remove();}
   m.addEventListener('click',function(e){if(e.target===m)close();});
   inner.querySelector('#iamCancel').onclick=close;
-  inner.querySelector('#iamView').onclick=function(){
-    close();
-    openImageViewer(imgs,idx,false);
-  };
+  inner.querySelector('#iamView').onclick=function(){close();openImageViewer(imgs,idx,false);};
   inner.querySelector('#iamReplace').onclick=function(){
     close();
-    var inp=document.createElement('input');
-    inp.type='file';inp.accept='image/*';
-    inp.onchange=function(e){
-      var f=e.target.files[0];if(!f)return;
-      processImage(f).then(function(d){onReplace(d);toast('已替换，记得点“保存”');});
-    };
+    var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+    inp.onchange=function(e){var f=e.target.files[0];if(!f)return;processImage(f).then(function(d){onReplace(d);toast('已替换，记得点“保存”');});};
     inp.click();
   };
-  inner.querySelector('#iamDelete').onclick=function(){
-    close();
-    if(!confirm('删除这张图片？'))return;
-    onDelete();
-    toast('已删除，记得点“保存”');
-  };
+  inner.querySelector('#iamDelete').onclick=function(){close();if(!confirm('删除这张图片？'))return;onDelete();toast('已删除，记得点“保存”');};
 }
 
 /* ===== 编辑阶段 ===== */
@@ -671,7 +649,6 @@ function openEditStageModal(stages,idx,work){
   var oldDur=(stage.cumulative||0)-prevCum;
   var oldH=Math.floor(oldDur/60),oldM=oldDur%60;
   var editImages=(stage.images||[]).slice();
-
   var body='<label class="fld">本阶段用时（不能小于原来，可留空不改）</label>'
     +'<div class="dur-row"><input type="number" id="edit-h" min="0" placeholder="时" value="'+oldH+'"><span class="lbl">时</span><input type="number" id="edit-m" min="0" max="59" placeholder="分" value="'+oldM+'"><span class="lbl">分</span></div>'
     +'<div class="muted" style="margin-top:-6px;margin-bottom:12px">原用时：'+fmtDur(oldDur)+'</div>'
@@ -681,50 +658,29 @@ function openEditStageModal(stages,idx,work){
     +'<div id="edit-imgs-wrap"></div>'
     +'<label class="fld" style="margin-top:8px">追加图片（可多选）</label><input type="file" id="edit-add-img" accept="image/*" multiple>';
   openModal('编辑阶段 '+(idx+1),body,'<button class="btn o" data-close>取消</button><button class="btn" id="edit-save">保存</button>');
-
   function refreshImgArea(){
     var wrap=document.getElementById('edit-imgs-wrap');if(!wrap)return;
     if(editImages.length){
       var h='<div class="edit-stage-imgs">';
       editImages.forEach(function(img,i){h+='<div class="esi-cell"><img src="'+img+'" data-esi="'+i+'"></div>'});
-      h+='</div>';
-      wrap.innerHTML=h;
+      h+='</div>';wrap.innerHTML=h;
       wrap.querySelectorAll('[data-esi]').forEach(function(el){
         el.onclick=function(e){
           e.stopPropagation();
           var i=Number(el.dataset.esi);
-          showImgActionMenu(editImages,i,
-            function(newImg){editImages[i]=newImg;refreshImgArea();},
-            function(){editImages.splice(i,1);refreshImgArea();}
-          );
+          showImgActionMenu(editImages,i,function(newImg){editImages[i]=newImg;refreshImgArea();},function(){editImages.splice(i,1);refreshImgArea();});
         };
       });
-    }else{
-      wrap.innerHTML='<div class="muted" style="margin-bottom:8px">暂无图片</div>';
-    }
+    }else{wrap.innerHTML='<div class="muted" style="margin-bottom:8px">暂无图片</div>';}
   }
   refreshImgArea();
-
   var af=document.getElementById('edit-add-img');
   if(af)af.onchange=function(e){
-    var files=[].slice.call(e.target.files||[]);
-    if(!files.length)return;
+    var files=[].slice.call(e.target.files||[]);if(!files.length)return;
     var done=0;
-    files.forEach(function(f){
-      processImage(f).then(function(d){
-        editImages.push(d);done++;
-        if(done===files.length)refreshImgArea();
-      });
-    });
+    files.forEach(function(f){processImage(f).then(function(d){editImages.push(d);done++;if(done===files.length)refreshImgArea();});});
   };
-
-  document.querySelectorAll('[data-close]').forEach(function(b){
-    b.onclick=function(){
-      closeModal();
-      setTimeout(function(){addWorkModal(work,work.category);},100);
-    };
-  });
-
+  document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=function(){closeModal();setTimeout(function(){addWorkModal(work,work.category);},100);};});
   document.getElementById('edit-save').onclick=function(){
     var hVal=document.getElementById('edit-h').value.trim(),mVal=document.getElementById('edit-m').value.trim();
     var newDate=document.getElementById('edit-date').value,newNote=document.getElementById('edit-note').value.trim();
@@ -732,14 +688,11 @@ function openEditStageModal(stages,idx,work){
     if(!same&&(hVal!==''||mVal!=='')){
       var newDur=(parseInt(hVal)||0)*60+(parseInt(mVal)||0);
       if(newDur<oldDur){toast('本阶段用时不能小于 '+fmtDur(oldDur));return}
-      var diff=newDur-oldDur;
-      stage.cumulative=(stage.cumulative||0)+diff;
+      var diff=newDur-oldDur;stage.cumulative=(stage.cumulative||0)+diff;
       for(var i=idx+1;i<stages.length;i++)stages[i].cumulative=(stages[i].cumulative||0)+diff;
     }
-    stage.date=newDate;stage.note=newNote;
-    stage.images=editImages.slice();
-    toast('阶段已修改，点“保存”生效');
-    closeModal();
+    stage.date=newDate;stage.note=newNote;stage.images=editImages.slice();
+    toast('阶段已修改，点“保存”生效');closeModal();
     setTimeout(function(){addWorkModal(work,work.category);},100);
   };
 }
@@ -764,8 +717,7 @@ function editCheckinModal(id){
   var c=DB.checkins.find(function(x){return x.id===id});if(!c)return;
   openModal('编辑打卡项','<label class="fld">名称</label><input id="ck-name" value="'+esc(c.name)+'">','<button class="btn o" data-close>取消</button><button class="btn" id="ck-save">保存</button>');
   document.getElementById('ck-save').onclick=function(){
-    var n=document.getElementById('ck-name').value.trim();
-    if(!n){toast('请输入名称');return}
+    var n=document.getElementById('ck-name').value.trim();if(!n){toast('请输入名称');return}
     c.name=n;idbPut('checkins',c).then(function(){closeModal();toast('已保存');renderCheckins();});
   };
 }
@@ -798,8 +750,7 @@ function streakCount(logs){
   return n;
 }
 function renderCheckins(){
-  titleEl.textContent='打卡';
-  backEl.style.display='none';actionEl.style.display='block';actionEl.onclick=addCheckinOrPlan;
+  titleEl.textContent='打卡';backEl.style.display='none';actionEl.style.display='block';actionEl.onclick=addCheckinOrPlan;
   var h='<div class="card"><h3 class="card-h"><span>打卡</span><button class="fold-btn'+(state.ckFoldOpen?'':' closed')+'" id="ckFold">▾</button></h3>';
   h+='<div id="ckBody"'+(state.ckFoldOpen?'':' class="hidden"')+'>';
   if(!DB.checkins.length)h+='<div class="muted" style="padding:6px 0">还没有打卡项</div>';
@@ -831,9 +782,7 @@ function renderCheckins(){
         +'<div class="bar"><i style="width:'+pct+'%"></i></div></div>';
     });
   }
-  h+='</div></div>';
-  view.innerHTML=h;
-
+  h+='</div></div>';view.innerHTML=h;
   view.querySelectorAll('[data-do]').forEach(function(b){var id=Number(b.dataset.do);bindTapAndDoubleTap(b,function(){doCheckin(id)},function(){cancelCheckin(id)});});
   view.querySelectorAll('[data-chk]').forEach(function(el){el.onclick=function(){toggleCheckinMonth(Number(el.dataset.chk))}});
   view.querySelectorAll('[data-ckdate]').forEach(function(el){
@@ -935,20 +884,20 @@ function renderPlanDetail(){
   var targetMin=(p.totalHours||0)*60,pct=targetMin?Math.min(100,total/targetMin*100):0;
   var h='<div class="card"><div class="muted">总进度</div><div class="big" style="margin-top:4px">'+fmtDur(total)+' / '+p.totalHours+' 小时</div>'
     +'<div class="bar" style="height:10px;margin-top:8px"><i style="width:'+pct+'%"></i></div>'
-    +'<div class="muted" style="margin-top:6px">'+pct.toFixed(1)+'% · 作品按顺序自动分配至节点</div></div>';
+    +'<div class="muted" style="margin-top:6px">'+pct.toFixed(1)+'% · 作品按时间轴顺延，可跨多个节点</div></div>';
   var nodes=p.nodes||[];
   if(nodes.length){
     if(state.nodeIdx<0)state.nodeIdx=0;
     if(state.nodeIdx>nodes.length-1)state.nodeIdx=nodes.length-1;
     var ca2=assigned[state.nodeIdx],n=ca2.node,nWorks=ca2.works,nTotal=ca2.totalMin;
-    var nTarget=(n.hours||0)*60,nPct=nTarget?Math.min(100,nTotal/nTarget*100):0,imgs=[];
-    nWorks.forEach(function(w){w.stages.forEach(function(s){(s.images||[]).forEach(function(img){imgs.push(img)})});});
+    var nTarget=(n.hours||0)*60,nPct=nTarget?Math.min(100,nTotal/nTarget*100):0;
+    var imgs=ca2.images||[];
     h+='<div class="node-nav"><button class="nb" id="nodePrev"'+(state.nodeIdx===0?' disabled':'')+'>‹</button>'
       +'<span class="nlabel">'+esc(n.name)+'　'+(state.nodeIdx+1)+' / '+nodes.length+'</span>'
       +'<button class="nb" id="nodeNext"'+(state.nodeIdx===nodes.length-1?' disabled':'')+'>›</button></div>';
     h+='<div class="node-card"><div class="node-head"><div><div class="node-name">'+esc(n.name)+'</div>';
-    if(nTarget)h+='<div class="muted" style="margin-top:4px">'+fmtDur(nTotal)+' / '+n.hours.toFixed(1)+' 小时 · '+nWorks.length+' 个作品</div><div class="bar"><i style="width:'+nPct+'%"></i></div>';
-    else h+='<div class="muted" style="margin-top:4px">累计 '+fmtDur(nTotal)+' · '+nWorks.length+' 个作品</div>';
+    if(nTarget)h+='<div class="muted" style="margin-top:4px">'+fmtDur(nTotal)+' / '+n.hours.toFixed(1)+' 小时 · 涉及 '+nWorks.length+' 个作品</div><div class="bar"><i style="width:'+nPct+'%"></i></div>';
+    else h+='<div class="muted" style="margin-top:4px">累计 '+fmtDur(nTotal)+' · 涉及 '+nWorks.length+' 个作品</div>';
     h+='</div>';
     if(imgs.length)h+='<button class="btn sm o" id="pickCoverBtn">选封面</button>';
     h+='</div>';
@@ -962,7 +911,6 @@ function renderPlanDetail(){
   }
   h+='<button class="btn o" id="delPlan" style="margin-top:12px;color:#c33">删除计划</button>';
   view.innerHTML=h;
-
   var big=document.getElementById('nodeBigImg');
   if(big)view.querySelectorAll('[data-thumb]').forEach(function(el){
     el.onclick=function(e){e.stopPropagation();big.src=el.dataset.thumb;
@@ -990,8 +938,7 @@ function pickCover(p,nodeId){
   var assigned=getAutoAssignedWorks(p,DB.works);
   var ta=assigned.find(function(a){return String(a.node.id)===String(nodeId)});
   if(!ta)return;
-  var n=ta.node,imgs=[];
-  ta.works.forEach(function(w){w.stages.forEach(function(s){(s.images||[]).forEach(function(img){imgs.push(img)})});});
+  var n=ta.node,imgs=ta.images||[];
   if(!imgs.length){toast('该节点还没有图片');return}
   var h='<div class="pick-grid">';
   imgs.forEach(function(img){h+='<div class="pcell'+(n.coverImg===img?' sel':'')+'" data-pick="'+img+'"><img src="'+img+'"></div>'});
@@ -1016,91 +963,54 @@ function renderStats(){
   h+='<div class="today-content"><div class="today-label">今日画画</div><div class="today-value">'+fmtDur(todayMin)+'</div>'
     +'<div class="today-total">总绘画时长 '+fmtDur(allMin)+'</div></div></div>';
   h+=renderImageCalendar();
-
   var h2='<div class="seg">';
   [['week','周'],['month','月'],['year','年']].forEach(function(r){h2+='<button data-r="'+r[0]+'"'+(state.statRange===r[0]?' class="on"':'')+'>'+r[1]+'</button>';});
   h2+='</div>';
   var now=new Date(),y=now.getFullYear(),m=now.getMonth(),off=state.statOffset||0;
   var pts=[],total=0,chartTitle='',periodLabel='',avgLabel='',avgVal=0,avgNote='',isCurrent=off===0;
-
   if(state.statRange==='week'){
-    chartTitle='每日时长';
-    var ws=new Date(now);
-    var day=(ws.getDay()+6)%7;
-    ws.setDate(ws.getDate()-day-off*7);
-    var we=new Date(ws);we.setDate(we.getDate()+6);
-    for(var i=0;i<7;i++){
-      var d=new Date(ws);d.setDate(ws.getDate()+i);
-      var ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-      var v=allStages.filter(function(s){return s.date===ds}).reduce(function(a,s){return a+s.duration},0);
-      pts.push({l:['一','二','三','四','五','六','日'][i],v:v});total+=v;
-    }
-    periodLabel=ws.getFullYear()+'年'+(ws.getMonth()+1)+'月'+ws.getDate()+'日 - '
-      +(ws.getMonth()===we.getMonth()?we.getDate()+'日':(we.getMonth()+1)+'月'+we.getDate()+'日');
-    var dp=isCurrent?(day+1):7;
-    avgLabel='平均每天';avgVal=total/dp;
-    if(isCurrent&&dp<7)avgNote='已过 '+dp+' 天';
+    chartTitle='每日时长';var ws=new Date(now);var day=(ws.getDay()+6)%7;
+    ws.setDate(ws.getDate()-day-off*7);var we=new Date(ws);we.setDate(we.getDate()+6);
+    for(var i=0;i<7;i++){var d=new Date(ws);d.setDate(ws.getDate()+i);var ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+      var v=allStages.filter(function(s){return s.date===ds}).reduce(function(a,s){return a+s.duration},0);pts.push({l:['一','二','三','四','五','六','日'][i],v:v});total+=v;}
+    periodLabel=ws.getFullYear()+'年'+(ws.getMonth()+1)+'月'+ws.getDate()+'日 - '+(ws.getMonth()===we.getMonth()?we.getDate()+'日':(we.getMonth()+1)+'月'+we.getDate()+'日');
+    var dp=isCurrent?(day+1):7;avgLabel='平均每天';avgVal=total/dp;if(isCurrent&&dp<7)avgNote='已过 '+dp+' 天';
   }else if(state.statRange==='month'){
-    chartTitle='每日时长';
-    var base=new Date(y,m-off,1);
-    var yy=base.getFullYear(),mm2=base.getMonth();
+    chartTitle='每日时长';var base=new Date(y,m-off,1);var yy=base.getFullYear(),mm2=base.getMonth();
     var days=new Date(yy,mm2+1,0).getDate();
-    for(var d2=1;d2<=days;d2++){
-      var ds2=yy+'-'+pad(mm2+1)+'-'+pad(d2);
-      var v2=allStages.filter(function(s){return s.date===ds2}).reduce(function(a,s){return a+s.duration},0);
-      pts.push({l:String(d2),v:v2});total+=v2;
-    }
-    periodLabel=yy+'年'+(mm2+1)+'月';
-    var dp2=isCurrent?now.getDate():days;
-    avgLabel='平均每周';avgVal=total*7/dp2;
-    if(isCurrent&&dp2<days)avgNote='已过 '+dp2+' 天';
+    for(var d2=1;d2<=days;d2++){var ds2=yy+'-'+pad(mm2+1)+'-'+pad(d2);
+      var v2=allStages.filter(function(s){return s.date===ds2}).reduce(function(a,s){return a+s.duration},0);pts.push({l:String(d2),v:v2});total+=v2;}
+    periodLabel=yy+'年'+(mm2+1)+'月';var dp2=isCurrent?now.getDate():days;avgLabel='平均每周';avgVal=total*7/dp2;if(isCurrent&&dp2<days)avgNote='已过 '+dp2+' 天';
   }else{
-    chartTitle='每月时长';
-    var yy2=y-off;
-    for(var mm3=1;mm3<=12;mm3++){
-      var pre=yy2+'-'+pad(mm3);
-      var v3=allStages.filter(function(s){return (s.date||'').slice(0,7)===pre}).reduce(function(a,s){return a+s.duration},0);
-      pts.push({l:mm3+'月',v:v3});total+=v3;
-    }
-    periodLabel=yy2+'年';
-    var mp=isCurrent?(now.getMonth()+1):12;
-    avgLabel='平均每月';avgVal=total/mp;
-    if(isCurrent&&mp<12)avgNote='已过 '+mp+' 个月';
+    chartTitle='每月时长';var yy2=y-off;
+    for(var mm3=1;mm3<=12;mm3++){var pre=yy2+'-'+pad(mm3);
+      var v3=allStages.filter(function(s){return (s.date||'').slice(0,7)===pre}).reduce(function(a,s){return a+s.duration},0);pts.push({l:mm3+'月',v:v3});total+=v3;}
+    periodLabel=yy2+'年';var mp=isCurrent?(now.getMonth()+1):12;avgLabel='平均每月';avgVal=total/mp;if(isCurrent&&mp<12)avgNote='已过 '+mp+' 个月';
   }
-
   h2+='<div class="card"><h3>'+chartTitle+'</h3>';
-  h2+='<div class="period-nav">';
-  h2+='<button class="pb" id="periodPrev" type="button">‹</button>';
-  h2+='<span class="plabel">'+esc(periodLabel)+'</span>';
-  h2+='<button class="pb" id="periodNext" type="button"'+(isCurrent?' disabled':'')+'>›</button>';
-  h2+='</div>';
+  h2+='<div class="period-nav"><button class="pb" id="periodPrev" type="button">‹</button><span class="plabel">'+esc(periodLabel)+'</span>'
+    +'<button class="pb" id="periodNext" type="button"'+(isCurrent?' disabled':'')+'>›</button></div>';
   h2+='<div class="muted" style="margin-bottom:6px;line-height:1.7">合计 '+fmtDur(total)+'<br>'+avgLabel+' '+fmtDur(avgVal)+(avgNote?'（'+avgNote+'）':'')+'</div>';
   h2+=lineChart(pts)+'</div>';
-
   var cat={};allStages.forEach(function(s){var k=s.category||'未分类';cat[k]=(cat[k]||0)+s.duration});
   var ca=Object.keys(cat).sort(function(a,b){return cat[b]-cat[a]});
   var cm=Math.max(1,Math.max.apply(null,ca.map(function(k){return cat[k]})));
   h2+='<div class="card"><h3>分类汇总</h3>';
   ca.forEach(function(k){h2+='<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:13px"><span>'+esc(k)+'</span><span class="muted">'+fmtDur(cat[k])+'</span></div><div class="bar"><i style="width:'+(cat[k]/cm*100)+'%"></i></div></div>';});
   h2+='</div>';
-
   h2+='<div class="card"><h3>检索作品</h3><div class="search-bar">'
     +'<input id="searchInput" type="search" placeholder="搜索备注 / 分类 / 阶段备注 / 日期" value="'+esc(state.q||'')+'">'
     +'<button class="btn sm o" id="searchClear" type="button" style="flex-shrink:0">清空</button></div>'
     +'<div class="chip-row" id="starChips"><button class="chip'+(state.stars.length===0?' on':'')+'" data-star="0" type="button">全部</button>';
   for(var s=5;s>=1;s--)h2+='<button class="chip'+(state.stars.indexOf(s)>=0?' on':'')+'" data-star="'+s+'" type="button">'+s+'★</button>';
   h2+='</div><div id="searchResults"></div></div>';
-
   view.innerHTML=h+h2;
   view.querySelectorAll('[data-r]').forEach(function(b){b.onclick=function(){state.statRange=b.dataset.r;state.statOffset=0;renderStats()}});
   var pp=document.getElementById('periodPrev');
   if(pp)pp.onclick=function(){state.statOffset=(state.statOffset||0)+1;renderStats();};
   var pn=document.getElementById('periodNext');
   if(pn)pn.onclick=function(){var o=state.statOffset||0;if(o>0){state.statOffset=o-1;renderStats();}};
-  bindCalendarEvents();
-  bindSearchEvents();
-  renderSearchResults();
-
+  bindCalendarEvents();bindSearchEvents();renderSearchResults();
   var tc=document.getElementById('todayCard');
   if(tc&&hasBg){
     tc.onclick=function(){
@@ -1151,30 +1061,22 @@ function filterWorks(){
 function renderSearchResults(){
   var box=document.getElementById('searchResults');if(!box)return;
   var q=(state.q||'').trim(),stars=state.stars||[];
-  var list=filterWorks();
-  list.sort(function(a,b){return (workCreatedAt(b)||0)-(workCreatedAt(a)||0);});
+  var list=filterWorks();list.sort(function(a,b){return (workCreatedAt(b)||0)-(workCreatedAt(a)||0);});
   var cond=[];
-  if(q)cond.push('“'+q+'”');
-  if(stars.length)cond.push(stars.join('、')+'★');
+  if(q)cond.push('“'+q+'”');if(stars.length)cond.push(stars.join('、')+'★');
   var head=cond.length?('匹配 '+cond.join(' + ')+' · 共 '+list.length+' 个'):('全部作品 · 共 '+list.length+' 个');
   var h='<div class="muted" style="margin-top:12px;font-weight:500">'+esc(head)+'</div>';
   if(!list.length){box.innerHTML=h+'<div class="empty" style="padding:24px 10px">没有匹配的作品</div>';return}
   h+='<div class="timeline">';
   list.forEach(function(w){
-    var imgs=getAllWorkImages(w),ca=workCreatedAt(w);
-    var dateStr=ca?fmtTs(ca):'未知时间';
+    var imgs=getAllWorkImages(w),ca=workCreatedAt(w);var dateStr=ca?fmtTs(ca):'未知时间';
     h+='<div class="tl-item"><div class="tl-date" data-tlwork="'+w.id+'">'+esc(dateStr)+(w.category?' · '+esc(w.category):'')+'</div>'
       +'<div class="tl-card"><div class="tl-top">'+starsHTML(w.rating||0,true,true)+'<span class="muted">'+fmtDur(workTotal(w))+'</span></div>';
-    if(imgs.length){
-      h+='<div class="tl-thumbs">';
-      imgs.forEach(function(im,i){h+='<img src="'+im+'" data-tlimg="'+w.id+'_'+i+'">'});
-      h+='</div>';
-    }
+    if(imgs.length){h+='<div class="tl-thumbs">';imgs.forEach(function(im,i){h+='<img src="'+im+'" data-tlimg="'+w.id+'_'+i+'">'});h+='</div>';}
     if(w.note)h+='<div class="tl-note">'+esc(w.note)+'</div>';
     h+='</div></div>';
   });
   box.innerHTML=h+'</div>';
-
   box.querySelectorAll('[data-tlimg]').forEach(function(el){
     el.onclick=function(e){
       e.stopPropagation();
@@ -1183,28 +1085,20 @@ function renderSearchResults(){
       openImageViewer(getAllWorkImages(w),idx,false);
     };
   });
-  box.querySelectorAll('[data-tlwork]').forEach(function(el){
-    el.onclick=function(e){e.stopPropagation();openWorkFromSearch(Number(el.dataset.tlwork));};
-  });
+  box.querySelectorAll('[data-tlwork]').forEach(function(el){el.onclick=function(e){e.stopPropagation();openWorkFromSearch(Number(el.dataset.tlwork));};});
 }
 function openWorkFromSearch(id){
   var w=DB.works.find(function(x){return x.id===id});if(!w)return;
   state.tab='collections';state.category=w.category;state.workId=id;state.workImgIdx=0;state.planId=null;
-  state._editWorkId=null;state._editStages=null;
-  renderTabs();renderWorkView();
+  state._editWorkId=null;state._editStages=null;renderTabs();renderWorkView();
 }
-
 function renderImageCalendar(){
   var d=state.calMonth,y=d.getFullYear(),m=d.getMonth(),dayData={};
-  DB.works.forEach(function(w){
-    w.stages.forEach(function(s,i){
-      if(!s.date)return;
-      if(s.date.slice(0,7)!==y+'-'+pad(m+1))return;
-      if(!dayData[s.date])dayData[s.date]={works:0,dur:0};
-      dayData[s.date].dur+=stageDur(w,i);
-      if(s.images&&s.images.length)dayData[s.date].works+=1;
-    });
-  });
+  DB.works.forEach(function(w){w.stages.forEach(function(s,i){
+    if(!s.date)return;if(s.date.slice(0,7)!==y+'-'+pad(m+1))return;
+    if(!dayData[s.date])dayData[s.date]={works:0,dur:0};
+    dayData[s.date].dur+=stageDur(w,i);if(s.images&&s.images.length)dayData[s.date].works+=1;
+  });});
   var first=new Date(y,m,1),sp=(first.getDay()+6)%7,days=new Date(y,m+1,0).getDate(),cells='';
   ['一','二','三','四','五','六','日'].forEach(function(w){cells+='<div class="w">'+w+'</div>'});
   for(var i=0;i<sp;i++)cells+='<div></div>';
@@ -1220,21 +1114,15 @@ function renderImageCalendar(){
 }
 function bindCalendarEvents(){
   view.querySelectorAll('[data-cal]').forEach(function(b){
-    b.onclick=function(){
-      var d=new Date(state.calMonth);
-      d.setMonth(d.getMonth()+(b.dataset.cal==='prev'?-1:1));
-      state.calMonth=d;renderStats();
-    };
+    b.onclick=function(){var d=new Date(state.calMonth);d.setMonth(d.getMonth()+(b.dataset.cal==='prev'?-1:1));state.calMonth=d;renderStats();};
   });
   view.querySelectorAll('[data-calday]').forEach(function(el){el.onclick=function(){showDayImages(el.dataset.calday)}});
 }
 function showDayImages(ds){
   var imgs=[],totalMin=0;
-  DB.works.forEach(function(w){
-    w.stages.forEach(function(s,i){
-      if(s.date===ds){(s.images||[]).forEach(function(img){imgs.push(img)});totalMin+=stageDur(w,i);}
-    });
-  });
+  DB.works.forEach(function(w){w.stages.forEach(function(s,i){
+    if(s.date===ds){(s.images||[]).forEach(function(img){imgs.push(img)});totalMin+=stageDur(w,i);}
+  });});
   var h='<div class="muted" style="margin-bottom:10px">'+ds+' · 总绘制 '+fmtDur(totalMin)+' · 点图片可看大图</div>';
   if(!imgs.length)h+='<div class="empty">这一天没有图片</div>';
   else{h+='<div class="grid34">';imgs.forEach(function(img,i){h+='<div class="cell" data-dayimg="'+i+'"><img src="'+img+'"></div>'});h+='</div>'}
@@ -1284,53 +1172,36 @@ function renderSettings(){
   var bgFile=document.getElementById('bgFile');
   if(bgFile)bgFile.onchange=function(e){
     var f=e.target.files[0];if(!f)return;
-    processImage(f).then(function(d){
-      todayBgImg=d;
-      idbPut('settings',{id:'todayBg',img:d}).then(function(){toast('背景已设置');renderSettings();});
-    });
+    processImage(f).then(function(d){todayBgImg=d;idbPut('settings',{id:'todayBg',img:d}).then(function(){toast('背景已设置');renderSettings();});});
   };
   var bgClear=document.getElementById('bgClear');
   if(bgClear)bgClear.onclick=function(){
     if(!confirm('移除今日画画卡片的背景图？'))return;
-    todayBgImg=null;
-    idbDel('settings','todayBg').then(function(){toast('已移除');renderSettings();});
+    todayBgImg=null;idbDel('settings','todayBg').then(function(){toast('已移除');renderSettings();});
   };
   view.querySelectorAll('[data-delcat]').forEach(function(b){b.onclick=function(){
     if(!confirm('删除这个分类？该分类下的作品不会被删除，只影响分类本身。'))return;
     var id=Number(b.dataset.delcat);
-    idbDel('categories',id).then(function(){
-      DB.categories=DB.categories.filter(function(c){return Number(c.id)!==id});
-      toast('已删除');renderSettings();
-    });
+    idbDel('categories',id).then(function(){DB.categories=DB.categories.filter(function(c){return Number(c.id)!==id});toast('已删除');renderSettings();});
   }});
 }
 
-/* ===== 导出 ===== */
+/* ===== 导出/导入 ===== */
 function exportAll(){
   var pack={version:1,exportedAt:new Date().toISOString(),categories:DB.categories,works:DB.works,checkins:DB.checkins,checkinLogs:DB.checkinLogs,plans:DB.plans,todayBgImg:todayBgImg};
-  var json=JSON.stringify(pack);
-  var fileName='draw-backup-'+today()+'.json';
-  var file=null;
+  var json=JSON.stringify(pack),fileName='draw-backup-'+today()+'.json',file=null;
   try{file=new File([json],fileName,{type:'application/json'});}catch(e){}
   if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
-    navigator.share({files:[file],title:'画集备份',text:'导出数据'}).then(function(){
-      toast('请选择“存储到文件/保存到文件”');
-    }).catch(function(err){
-      if(err&&err.name==='AbortError')return;
-      fallbackDownload(json,fileName);
-    });
+    navigator.share({files:[file],title:'画集备份',text:'导出数据'}).then(function(){toast('请选择“存储到文件/保存到文件”');})
+      .catch(function(err){if(err&&err.name==='AbortError')return;fallbackDownload(json,fileName);});
     return;
   }
   fallbackDownload(json,fileName);
 }
 function fallbackDownload(json,fileName){
-  var blob=new Blob([json],{type:'application/json'});
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement('a');
-  a.href=url;a.download=fileName;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  var blob=new Blob([json],{type:'application/json'}),url=URL.createObjectURL(blob);
+  var a=document.createElement('a');a.href=url;a.download=fileName;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(function(){URL.revokeObjectURL(url);},1500);
   toast('已触发下载，请查看通知栏 / 下载 / 文件App');
 }
