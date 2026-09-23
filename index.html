@@ -276,7 +276,7 @@ function workCreatedAt(w){if(w.createdAt)return w.createdAt;
   if(w.stages&&w.stages.length&&w.stages[0].date)return new Date(w.stages[0].date+'T00:00:00').getTime();return null;}
 function getAllWorkImages(w){var a=[];(w.stages||[]).forEach(function(s){(s.images||[]).forEach(function(im){a.push(im)})});return a;}
 
-/* ===== 节点分配：装不下就顺到下一个节点，绝不拆分作品 ===== */
+/* ===== 节点分配：按顺序放入，当前节点已有内容且加上这张图超标 → 顺到下一个节点 ===== */
 function getAutoAssignedWorks(plan,allWorks){
   var assigned=plan.nodes.map(function(n){return{node:n,works:[],totalMin:0};});
   var targetWorks=allWorks.filter(function(w){return String(w.planId)===String(plan.id);});
@@ -285,17 +285,11 @@ function getAutoAssignedWorks(plan,allWorks){
   targetWorks.forEach(function(w){
     var wTotal=workTotal(w);
     if(ci>=assigned.length)return;
-    // 从当前节点开始，往后找一个"能装下这张图"的节点
-    while(ci<assigned.length){
-      var nodeTargetMin=(assigned[ci].node.hours||0)*60;
-      var isLast=(ci===assigned.length-1);
-      if(isLast)break; // 最后一个节点是兜底，无论多大都放
-      // 空节点：目标时长 >= 这张图 → 装得下
-      if(assigned[ci].works.length===0 && nodeTargetMin>=wTotal) break;
-      // 非空节点：当前累计 + 这张图 <= 目标 → 装得下
-      if(assigned[ci].works.length>0 && nodeTargetMin>0 && acc+wTotal<=nodeTargetMin) break;
-      // 装不下 → 顺到下一个节点
-      ci++;acc=0;
+    var nodeTargetMin=(assigned[ci].node.hours||0)*60;
+    // 只有当前节点"已经有作品"，并且加上这张图会超标 → 顺到下一个节点
+    // 当前节点是空的时候，无论这张图多大都放进去，避免前面节点全空
+    if(assigned[ci].works.length>0 && nodeTargetMin>0 && acc+wTotal>nodeTargetMin){
+      if(ci<assigned.length-1){ci++;acc=0;}
     }
     assigned[ci].works.push(w);
     assigned[ci].totalMin+=wTotal;
@@ -452,7 +446,7 @@ function addCategoryModal(){
   };
 }
 
-/* ===== 添加/编辑作品（编辑时使用临时副本，取消不生效） ===== */
+/* ===== 添加/编辑作品 ===== */
 function addWorkModal(work,category){
   var editing=!!work;
   var rating=work?work.rating:0;
@@ -670,7 +664,7 @@ function showImgActionMenu(imgs,idx,onReplace,onDelete){
   };
 }
 
-/* ===== 编辑阶段（作用于临时 stages 数组） ===== */
+/* ===== 编辑阶段 ===== */
 function openEditStageModal(stages,idx,work){
   var stage=stages[idx];if(!stage)return;
   var prevCum=idx===0?0:(stages[idx-1].cumulative||0);
@@ -941,7 +935,7 @@ function renderPlanDetail(){
   var targetMin=(p.totalHours||0)*60,pct=targetMin?Math.min(100,total/targetMin*100):0;
   var h='<div class="card"><div class="muted">总进度</div><div class="big" style="margin-top:4px">'+fmtDur(total)+' / '+p.totalHours+' 小时</div>'
     +'<div class="bar" style="height:10px;margin-top:8px"><i style="width:'+pct+'%"></i></div>'
-    +'<div class="muted" style="margin-top:6px">'+pct.toFixed(1)+'% · 作品已按节点时长自动顺延分配</div></div>';
+    +'<div class="muted" style="margin-top:6px">'+pct.toFixed(1)+'% · 作品按顺序自动分配至节点</div></div>';
   var nodes=p.nodes||[];
   if(nodes.length){
     if(state.nodeIdx<0)state.nodeIdx=0;
@@ -953,8 +947,8 @@ function renderPlanDetail(){
       +'<span class="nlabel">'+esc(n.name)+'　'+(state.nodeIdx+1)+' / '+nodes.length+'</span>'
       +'<button class="nb" id="nodeNext"'+(state.nodeIdx===nodes.length-1?' disabled':'')+'>›</button></div>';
     h+='<div class="node-card"><div class="node-head"><div><div class="node-name">'+esc(n.name)+'</div>';
-    if(nTarget)h+='<div class="muted" style="margin-top:4px">'+fmtDur(nTotal)+' / '+n.hours.toFixed(1)+' 小时</div><div class="bar"><i style="width:'+nPct+'%"></i></div>';
-    else h+='<div class="muted" style="margin-top:4px">累计 '+fmtDur(nTotal)+'</div>';
+    if(nTarget)h+='<div class="muted" style="margin-top:4px">'+fmtDur(nTotal)+' / '+n.hours.toFixed(1)+' 小时 · '+nWorks.length+' 个作品</div><div class="bar"><i style="width:'+nPct+'%"></i></div>';
+    else h+='<div class="muted" style="margin-top:4px">累计 '+fmtDur(nTotal)+' · '+nWorks.length+' 个作品</div>';
     h+='</div>';
     if(imgs.length)h+='<button class="btn sm o" id="pickCoverBtn">选封面</button>';
     h+='</div>';
