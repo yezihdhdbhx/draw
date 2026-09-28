@@ -190,6 +190,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 #bootErr h2{margin:0 0 12px;font-size:17px;color:#c33}
 #bootErr .msg{color:#666;font-size:14px;line-height:1.6;margin-bottom:18px;word-break:break-all;max-width:90%}
 #bootErr .tip{color:#999;font-size:12px;line-height:1.7;margin-bottom:18px;text-align:left;max-width:90%;background:#f7f8fa;padding:12px;border-radius:10px}
+#compressProgress{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:400;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-direction:column;gap:12px}
 </style>
 </head>
 <body>
@@ -289,6 +290,89 @@ function processImageList(files){
     }
     launch();
   });
+}
+
+/* ===== 压缩已存的 dataURL ===== */
+function compressDataUrl(dataUrl){
+  return new Promise(function(resolve){
+    if(!dataUrl||typeof dataUrl!=='string'||dataUrl.indexOf('data:image')!==0){resolve(dataUrl);return}
+    if(dataUrl.indexOf('data:image/gif')===0){resolve(dataUrl);return}
+    var img=new Image();
+    img.onload=function(){
+      try{
+        var w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+        if(!w||!h){resolve(dataUrl);return}
+        var longSide=Math.max(w,h),scale=longSide>IMG_MAX_SIDE?IMG_MAX_SIDE/longSide:1;
+        if(scale===1&&dataUrl.length<300*1024){resolve(dataUrl);return}
+        var tw=Math.max(1,Math.round(w*scale)),th=Math.max(1,Math.round(h*scale));
+        var cv=document.createElement('canvas');cv.width=tw;cv.height=th;
+        var ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,tw,th);ctx.drawImage(img,0,0,tw,th);
+        var out=cv.toDataURL('image/jpeg',IMG_QUALITY);
+        resolve(out.length<dataUrl.length?out:dataUrl);
+      }catch(e){resolve(dataUrl)}
+    };
+    img.onerror=function(){resolve(dataUrl)};
+    img.src=dataUrl;
+  });
+}
+function compressAllStoredImages(){
+  if(!confirm('将压缩所有已保存的图片（长边≤'+IMG_MAX_SIDE+'px，JPEG '+Math.round(IMG_QUALITY*100)+'%）。\n\n原图会被替换，无法撤销。确定继续？'))return;
+  var tasks=[],workMap={};
+  DB.works.forEach(function(w){
+    workMap[w.id]=w;
+    (w.stages||[]).forEach(function(s,sIdx){
+      (s.images||[]).forEach(function(img,iIdx){
+        if(img&&typeof img==='string'&&img.indexOf('data:image')===0&&img.indexOf('data:image/gif')!==0){
+          tasks.push({wid:w.id,s:sIdx,i:iIdx,url:img});
+        }
+      });
+    });
+  });
+  var bgTask=(todayBgImg&&todayBgImg.indexOf('data:image')===0&&todayBgImg.indexOf('data:image/gif')!==0)?todayBgImg:null;
+  if(!tasks.length&&!bgTask){toast('没有需要压缩的图片');return}
+  var total=tasks.length+(bgTask?1:0),done=0,savedBytes=0;
+  showCompressProgress(0,total);
+  var CONCURRENCY=2,idx=0;
+  function next(){
+    if(idx>=tasks.length){
+      if(bgTask){
+        compressDataUrl(bgTask).then(function(out){
+          savedBytes+=(bgTask.length-out.length);todayBgImg=out;done++;showCompressProgress(done,total);
+          idbPut('settings',{id:'todayBg',img:out}).then(function(){finishCompress(savedBytes)});
+        });
+      }else finishCompress(savedBytes);
+      return;
+    }
+    var start=idx;idx+=CONCURRENCY;
+    var batch=tasks.slice(start,idx);
+    Promise.all(batch.map(function(t){
+      return compressDataUrl(t.url).then(function(out){
+        savedBytes+=(t.url.length-out.length);
+        var w=workMap[t.wid];
+        if(w&&w.stages&&w.stages[t.s]&&w.stages[t.s].images)w.stages[t.s].images[t.i]=out;
+        done++;showCompressProgress(done,total);
+      });
+    })).then(function(){
+      var touched={};batch.forEach(function(t){touched[t.wid]=true});
+      Promise.all(Object.keys(touched).map(function(wid){return idbPut('works',workMap[wid])})).then(next);
+    });
+  }
+  next();
+}
+function showCompressProgress(done,total){
+  var el=document.getElementById('compressProgress');
+  if(!el){
+    el=document.createElement('div');el.id='compressProgress';
+    document.body.appendChild(el);
+  }
+  var pct=total?Math.round(done/total*100):0;
+  el.innerHTML='<div>正在压缩图片…</div><div style="font-size:22px;font-weight:700">'+done+' / '+total+'</div><div style="width:200px;height:6px;background:rgba(255,255,255,.2);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:#fff;transition:width .2s"></div></div>';
+}
+function finishCompress(savedBytes){
+  var el=document.getElementById('compressProgress');if(el)el.remove();
+  var mb=(savedBytes/1024/1024).toFixed(2);
+  toast('压缩完成，节省约 '+mb+' MB');
+  if(state.tab==='settings')renderSettings();
 }
 
 function idbAvailable(){try{return window.indexedDB&&window.location.protocol!=='file:';}catch(e){return false}}
@@ -1082,12 +1166,14 @@ function renderSettings(){
   h+='<div class="card"><h3>今日画画卡片背景</h3><label class="fld">上传背景图（会自动压缩）</label><input type="file" id="bgFile" accept="image/*">';
   if(todayBgImg)h+='<div style="margin-top:6px;border-radius:10px;overflow:hidden;background:#f0f0f3"><img src="'+todayBgImg+'" style="width:100%;display:block;opacity:.4"></div><button class="btn o" id="bgClear" style="margin-top:10px;color:#c33">移除背景图</button>';
   h+='<div class="muted" style="margin-top:8px">在「统计」页的今日画画卡片上点一下，可全屏显示背景图 5 秒，然后自动恢复。</div></div>';
+  h+='<button class="btn" id="compressBtn" style="background:#c33;margin-bottom:10px">压缩已存图片</button>';
   h+='<button class="btn o" id="expBtn">一键导出所有数据</button><button class="btn o" id="impBtn">一键导入数据</button>';
   var totalImgs=0;DB.works.forEach(function(w){totalImgs+=workImgCount(w)});
-  h+='<div class="card"><h3>存储</h3><div class="muted">作品 '+DB.works.length+' 个 · 图片 '+totalImgs+' 张<br>使用 '+(idb?'IndexedDB':'内存（本次会话有效，退出后丢失）')+'<br>图片压缩：长边≤'+IMG_MAX_SIDE+'px，JPEG质量 '+Math.round(IMG_QUALITY*100)+'%</div></div>';
-  h+='<div class="card"><h3>说明</h3><div class="muted">图片上传时自动压缩保存（长边最多 '+IMG_MAX_SIDE+'px，JPEG 质量 '+Math.round(IMG_QUALITY*100)+'%），GIF 动图保留原样。导出文件为 JSON 格式，包含所有分类、作品、图片、打卡、打卡备注、计划、卡片背景。换手机时用「导入数据」恢复即可。</div></div>';
+  h+='<div class="card"><h3>存储</h3><div class="muted">作品 '+DB.works.length+' 个 · 图片 '+totalImgs+' 张<br>使用 '+(idb?'IndexedDB':'内存（本次会话有效，退出后丢失）')+'<br>新图压缩：长边≤'+IMG_MAX_SIDE+'px，JPEG质量 '+Math.round(IMG_QUALITY*100)+'%</div></div>';
+  h+='<div class="card"><h3>说明</h3><div class="muted">新上传图片自动压缩保存（长边最多 '+IMG_MAX_SIDE+'px，JPEG 质量 '+Math.round(IMG_QUALITY*100)+'%），GIF 动图保留原样。已存的旧图片不会自动处理，可用上方「压缩已存图片」按钮批量压缩。导出文件为 JSON 格式，包含所有分类、作品、图片、打卡、打卡备注、计划、卡片背景。</div></div>';
   view.innerHTML=h;
   document.getElementById('addCat').onclick=addCategoryModal;
+  document.getElementById('compressBtn').onclick=compressAllStoredImages;
   document.getElementById('expBtn').onclick=exportAll;
   document.getElementById('impBtn').onclick=importAll;
   var bgFile=document.getElementById('bgFile');
