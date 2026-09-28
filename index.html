@@ -8,26 +8,15 @@
 <meta http-equiv="Expires" content="0">
 <title>draw</title>
 <script>
-/* ===== 加载优化：彻底清理 SW + 缓存，只做一次，避免重复刷新 ===== */
 (function(){
   try{
-    if('serviceWorker' in navigator){
-      navigator.serviceWorker.getRegistrations().then(function(rs){
-        rs.forEach(function(r){ try{r.unregister();}catch(e){} });
-      }).catch(function(){});
-    }
-    if(window.caches&&caches.keys){
-      caches.keys().then(function(ks){
-        ks.forEach(function(k){ try{caches.delete(k);}catch(e){} });
-      }).catch(function(){});
-    }
+    if('serviceWorker' in navigator)navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){try{r.unregister();}catch(e){}});}).catch(function(){});
+    if(window.caches&&caches.keys)caches.keys().then(function(ks){ks.forEach(function(k){try{caches.delete(k);}catch(e){}});}).catch(function(){});
   }catch(e){}
 })();
-
-/* ===== 全局错误提示 ===== */
 window.addEventListener('error',function(e){
   var box=document.getElementById('bootErr');
-  if(box){box.style.display='block';box.querySelector('.msg').textContent='发生错误：'+(e.message||'未知');}
+  if(box){box.style.display='flex';box.querySelector('.msg').textContent='发生错误：'+(e.message||'未知');}
 });
 </script>
 <style>
@@ -37,8 +26,7 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 #top{background:#fff;display:flex;align-items:center;justify-content:center;height:75px;border-bottom:1px solid #ebebeb;position:relative;flex-shrink:0}
 #title{font-weight:600;font-size:17px}
 .side{position:absolute;top:50%;transform:translateY(-50%);border:none;background:transparent;font-size:22px;color:#1a1a1a;cursor:pointer;padding:8px 14px;line-height:1}
-#back{left:0;display:none}
-#action{right:0;font-size:26px}
+#back{left:0;display:none}#action{right:0;font-size:26px}
 #view{flex:1;overflow-y:auto;padding:14px;padding-bottom:90px}
 #tabs{display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-top:1px solid #ebebeb;flex-shrink:0;height:64px;padding-bottom:env(safe-area-inset-bottom)}
 .tab{padding:0;text-align:center;font-size:15px;color:#888;background:#f5f6f8;border:none;cursor:pointer;font-weight:500;font-family:inherit;display:flex;align-items:center;justify-content:center;min-height:56px}
@@ -51,15 +39,12 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .btn{display:block;width:100%;padding:13px;border:none;border-radius:10px;background:#1a1a1a;color:#fff;font-size:15px;font-weight:500;cursor:pointer;margin-bottom:10px;font-family:inherit}
 .btn.o{background:#fff;color:#1a1a1a;border:1px solid #ddd}
 .btn.sm{display:inline-block;width:auto;padding:6px 14px;font-size:13px;margin:0}
-.btn:active{opacity:.85}
-.btn:disabled{opacity:.35;cursor:default}
+.btn:active{opacity:.85}.btn:disabled{opacity:.35;cursor:default}
 .btn.sm.punched{background:#f0f0f3;color:#1a1a1a;border:1px solid #e2e2e8}
-.muted{color:#999;font-size:13px}
-.big{font-size:24px;font-weight:700}
+.muted{color:#999;font-size:13px}.big{font-size:24px;font-weight:700}
 .grid34{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .grid34 .cell{aspect-ratio:3/4;background:#d8d8dd;border-radius:8px;overflow:hidden;cursor:pointer}
 .grid34 .cell img{width:100%;height:100%;object-fit:cover;background:#d8d8dd;display:block}
-.img-viewer{margin-bottom:12px}
 .img-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
 .img-nav button{width:56px;height:56px;border:none;background:#1a1a1a;color:#fff;border-radius:10px;font-size:22px;font-weight:500;cursor:pointer;font-family:inherit;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
 .img-nav button:disabled{opacity:.3;cursor:default}
@@ -68,13 +53,13 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .img-stage-info .note{font-size:13px;color:#333;margin-top:6px;white-space:pre-wrap;word-break:break-word;line-height:1.6}
 .img-big{display:block;cursor:pointer;background:transparent}
 .img-big img{width:100%;height:auto;display:block;border-radius:8px;background:#d8d8dd}
-.today-card{background:linear-gradient(135deg,#ffffff 0%,#eef0ff 100%);text-align:center;padding:26px 14px;position:relative;overflow:hidden}
+.today-card{background:linear-gradient(135deg,#fff 0%,#eef0ff 100%);text-align:center;padding:26px 14px;position:relative;overflow:hidden}
 .today-card::before{content:'';position:absolute;top:-50px;right:-50px;width:140px;height:140px;border-radius:50%;background:#dfe3ff;opacity:.55}
 .today-card::after{content:'';position:absolute;bottom:-40px;left:-40px;width:100px;height:100px;border-radius:50%;background:#dfe3ff;opacity:.4}
 .today-label{font-size:13px;color:#7a82a8;letter-spacing:1px;position:relative;z-index:1}
 .today-value{font-size:38px;font-weight:700;color:#1a1a1a;margin-top:8px;position:relative;z-index:1;letter-spacing:-1px;line-height:1.15}
 .today-total{font-size:13px;color:#8e8e93;margin-top:12px;position:relative;z-index:1;padding-top:12px;border-top:1px dashed #d8dcf0}
-.today-bg{position:absolute;inset:0;background-size:cover;background-position:center center;background-repeat:no-repeat;opacity:.4;transition:opacity .35s ease;z-index:0;pointer-events:none}
+.today-bg{position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat;opacity:.4;transition:opacity .35s ease;z-index:0;pointer-events:none}
 .today-card.show-bg .today-bg{opacity:1}
 .today-content{position:relative;z-index:1;transition:opacity .3s ease}
 .today-card.show-bg .today-content{opacity:0}
@@ -91,10 +76,9 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
 .cal-card{padding-left:4px;padding-right:4px}
 .cal .w{text-align:center;font-size:11px;color:#aaa;padding:6px 0}
-.cal .d{aspect-ratio:1 / 1.12;border-radius:8px;background:#f7f8fa;display:flex;flex-direction:column;align-items:center;justify-content:space-between;font-size:13px;border:1px solid transparent;cursor:pointer;position:relative;padding:4px 1px 2px;overflow:hidden}
+.cal .d{aspect-ratio:1/1.12;border-radius:8px;background:#f7f8fa;display:flex;flex-direction:column;align-items:center;justify-content:space-between;font-size:13px;border:1px solid transparent;cursor:pointer;position:relative;padding:4px 1px 2px;overflow:hidden}
 .cal .d.has{background:#1a1a1a;color:#fff;font-weight:600}
-.cal .d.today{border-color:#999}
-.cal .d.future{opacity:.35}
+.cal .d.today{border-color:#999}.cal .d.future{opacity:.35}
 .cal .d.has-note::after{content:'';position:absolute;bottom:3px;right:3px;width:6px;height:6px;border-radius:50%;background:#f5a623;box-shadow:0 0 0 1.5px rgba(255,255,255,.55)}
 .cal .d .dd{font-size:14px;font-weight:600;line-height:1}
 .cal .d .dur{font-size:8px;line-height:1.1;color:#aaa;font-weight:500;white-space:nowrap;max-width:100%;overflow:hidden;text-align:center}
@@ -107,10 +91,9 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .ck-stat .num small{font-size:12px;font-weight:500;color:#999;margin-left:2px}
 .ck-stat .lbl{font-size:11px;color:#888;margin-top:4px}
 .cal-month-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px}
-.cal-month-nav .cal-nav-btn{width:36px;height:36px;border:1px solid #ddd;background:#fff;color:#1a1a1a;border-radius:10px;font-size:18px;cursor:pointer;font-family:inherit;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
-.cal-month-nav .cal-nav-btn:disabled{opacity:.3;cursor:default}
-.cal-month-nav .cal-nav-btn:active:not(:disabled){opacity:.7}
-.cal-month-nav .cal-month-label{flex:1;text-align:center;font-size:14px;font-weight:600;color:#333}
+.cal-nav-btn{width:36px;height:36px;border:1px solid #ddd;background:#fff;color:#1a1a1a;border-radius:10px;font-size:18px;cursor:pointer;font-family:inherit;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
+.cal-nav-btn:disabled{opacity:.3;cursor:default}.cal-nav-btn:active:not(:disabled){opacity:.7}
+.cal-month-label{flex:1;text-align:center;font-size:14px;font-weight:600;color:#333}
 .seg{display:flex;background:#f0f0f3;border-radius:10px;padding:4px;margin-bottom:12px;overflow-x:auto}
 .seg button{flex:1;border:none;background:transparent;padding:8px 12px;font-size:13px;font-weight:500;color:#666;border-radius:8px;cursor:pointer;font-family:inherit;white-space:nowrap}
 .seg button.on{background:#fff;color:#1a1a1a;box-shadow:0 1px 3px rgba(0,0,0,.08)}
@@ -118,8 +101,7 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .bar>i{display:block;height:100%;background:#1a1a1a;border-radius:6px}
 .chk-block{margin-bottom:10px}
 .chk{display:flex;align-items:center;gap:10px;padding:12px;background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.04);cursor:pointer}
-.chk .n{flex:1;min-width:0}
-.chk .nm{font-weight:600}
+.chk .n{flex:1;min-width:0}.chk .nm{font-weight:600}
 .chk .i{font-size:12px;color:#999;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chk-month{background:#fff;border-radius:0 0 12px 12px;padding:0 12px 12px;margin-top:-4px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .chk-month-inner{padding-top:10px;border-top:1px solid #f2f2f5}
@@ -141,8 +123,6 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .stars span{color:#e0e0e0;transition:color .15s}
 .stars span.on{color:#1a1a1a}
 .stars.sm{font-size:14px;gap:2px;margin-bottom:0}
-.stars.sm span{color:#e0e0e0}
-.stars.sm span.on{color:#1a1a1a}
 .stars.nomb{margin-bottom:0}
 .existing-stages{background:#f7f8fa;border-radius:8px;padding:10px;margin-bottom:12px}
 .existing-stage-row{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #e2e2e8}
@@ -190,8 +170,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .period-nav{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px}
 .period-nav .plabel{flex:1;text-align:center;font-size:13px;color:#666;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .period-nav .pb{width:40px;height:40px;border:1px solid #ddd;background:#fff;color:#1a1a1a;border-radius:10px;font-size:20px;cursor:pointer;font-family:inherit;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
-.period-nav .pb:disabled{opacity:.3;cursor:default}
-.period-nav .pb:active:not(:disabled){opacity:.7}
+.period-nav .pb:disabled{opacity:.3;cursor:default}.period-nav .pb:active:not(:disabled){opacity:.7}
 .newthumb{position:relative;aspect-ratio:3/4;background:#d8d8dd;border-radius:8px;overflow:hidden}
 .newthumb img{width:100%;height:100%;object-fit:cover;display:block}
 .newthumb .rm{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center}
@@ -207,7 +186,6 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .iv-prev{left:12px}.iv-next{right:12px}
 .iv-prev:disabled,.iv-next:disabled{opacity:.2}
 .iv-counter{position:absolute;bottom:28px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;background:rgba(0,0,0,.55);padding:6px 14px;border-radius:14px;z-index:2}
-/* 启动/错误提示 */
 #bootErr{position:fixed;inset:0;background:#fff;z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center;font-family:sans-serif}
 #bootErr h2{margin:0 0 12px;font-size:17px;color:#c33}
 #bootErr .msg{color:#666;font-size:14px;line-height:1.6;margin-bottom:18px;word-break:break-all;max-width:90%}
@@ -251,89 +229,95 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
   <div class="iv-counter" id="ivCounter"></div>
 </div>
 <script>
-/* ===== 全局变量 ===== */
+var IMG_MAX_SIDE=1600,IMG_QUALITY=0.82;
 var DB={categories:[],works:[],checkins:[],checkinLogs:[],plans:[]};
 var state={tab:'collections',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',statOffset:0,calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false,q:'',stars:[],_editWorkId:null,_editStages:null,checkinCalMonth:{}};
 var view=document.getElementById('view'),titleEl=document.getElementById('title'),backEl=document.getElementById('back'),actionEl=document.getElementById('action');
-var todayBgImg=null,todayShowTimer=null;
-var viewerImgs=[],viewerIdx=0,viewerSyncWork=false;
-var idb=null;
-var memStore={}; /* 内存兜底：IDB 失败时用内存，数据当前会话有效 */
+var todayBgImg=null,todayShowTimer=null,viewerImgs=[],viewerIdx=0,viewerSyncWork=false,idb=null,memStore={};
 
-/* ===== 工具 ===== */
 function uid(){return Date.now()+Math.floor(Math.random()*100000)}
 function pad(n){return String(n).padStart(2,'0')}
 function today(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
 function fmtDate(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
 function fmtTs(ts){var d=new Date(ts);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())}
 function fmtDur(m){m=Math.round(m||0);if(m<60)return m+'分';var h=Math.floor(m/60),mm=m%60;return mm?h+'时'+mm+'分':h+'时'}
-function fmtDurCal(m){m=Math.round(m||0);if(m<60)return m+'min';var h=Math.floor(m/60),mm=m%60;return mm?h+'h'+mm+'min':h+'h';}
+function fmtDurCal(m){m=Math.round(m||0);if(m<60)return m+'min';var h=Math.floor(m/60),mm=m%60;return mm?h+'h'+mm+'min':h+'h'}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function toast(m){var t=document.createElement('div');t.textContent=m;t.style.cssText='position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:9999';document.body.appendChild(t);setTimeout(function(){t.remove()},1600)}
 
-/* ===== IndexedDB，失败自动切内存 ===== */
-function idbAvailable(){
-  try{
-    if(!window.indexedDB)return false;
-    if(window.location.protocol==='file:')return false; /* file:// 下 IDB 常被禁 */
-    return true;
-  }catch(e){return false;}
-}
-function openIDB(){
+function processImage(file){
   return new Promise(function(res,rej){
-    if(!idbAvailable()){rej(new Error('当前环境不支持 IndexedDB'));return;}
-    var req;
-    try{req=indexedDB.open('draw_idb',2);}catch(e){rej(e);return;}
-    req.onupgradeneeded=function(e){
-      try{
-        var d=e.target.result;
-        ['categories','works','checkins','checkinLogs','plans','settings'].forEach(function(n){
-          if(!d.objectStoreNames.contains(n))d.createObjectStore(n,{keyPath:'id'});
-        });
-      }catch(err){}
+    if(!file){rej(new Error('无文件'));return;}
+    if(file.type==='image/gif'){var r=new FileReader();r.onload=function(e){res(e.target.result)};r.onerror=rej;r.readAsDataURL(file);return;}
+    var rd=new FileReader();
+    rd.onload=function(e){
+      var dataUrl=e.target.result,img=new Image();
+      img.onload=function(){
+        try{
+          var w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+          if(!w||!h){res(dataUrl);return;}
+          var longSide=Math.max(w,h),scale=longSide>IMG_MAX_SIDE?IMG_MAX_SIDE/longSide:1;
+          var tw=Math.max(1,Math.round(w*scale)),th=Math.max(1,Math.round(h*scale));
+          var cv=document.createElement('canvas');cv.width=tw;cv.height=th;
+          var ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,tw,th);ctx.drawImage(img,0,0,tw,th);
+          var out=cv.toDataURL('image/jpeg',IMG_QUALITY);
+          res(scale===1&&out.length>=dataUrl.length?dataUrl:out);
+        }catch(err){res(dataUrl)}
+      };
+      img.onerror=function(){res(dataUrl)};
+      img.src=dataUrl;
     };
-    req.onsuccess=function(e){idb=e.target.result;
-      idb.onerror=function(){};
-      idb.onversionchange=function(){try{idb.close();}catch(e){}};
-      res();
-    };
-    req.onerror=function(e){rej(e.target.error||new Error('IDB 打开失败'));};
-    req.onblocked=function(){rej(new Error('IDB 被其他页面占用'));};
-    setTimeout(function(){if(!idb)rej(new Error('IDB 打开超时'));},4000);
+    rd.onerror=rej;rd.readAsDataURL(file);
   });
 }
-function tx(s,m){return idb.transaction(s,m||'readonly').objectStore(s);}
-/* 以下 4 个函数：IDB 可用则用 IDB，否则用内存 */
-function idbAll(s){
-  if(!idb){return Promise.resolve(memStore[s]?Object.values(memStore[s]):[]);}
-  return new Promise(function(res,rej){var r=tx(s).getAll();r.onsuccess=function(){res(r.result);};r.onerror=function(){rej(r.error);};});
-}
-function idbPut(s,o){
-  if(!idb){memStore[s]=memStore[s]||{};memStore[s][o.id]=o;return Promise.resolve();}
-  return new Promise(function(res,rej){var r=tx(s,'readwrite').put(o);r.onsuccess=function(){res();};r.onerror=function(){rej(r.error);};});
-}
-function idbDel(s,id){
-  if(!idb){if(memStore[s])delete memStore[s][id];return Promise.resolve();}
-  return new Promise(function(res,rej){var r=tx(s,'readwrite').delete(id);r.onsuccess=function(){res();};r.onerror=function(){rej(r.error);};});
-}
-function idbClear(s){
-  if(!idb){memStore[s]={};return Promise.resolve();}
-  return new Promise(function(res,rej){var r=tx(s,'readwrite').clear();r.onsuccess=function(){res();};r.onerror=function(){rej(r.error);};});
+function processImageList(files){
+  return new Promise(function(resolve){
+    var arr=[].slice.call(files||[]);
+    if(!arr.length){resolve([]);return;}
+    var results=new Array(arr.length),next=0,doneCount=0,CONCURRENCY=3;
+    function launch(){
+      while(next<arr.length&&(next-doneCount)<CONCURRENCY){
+        (function(idx){
+          processImage(arr[idx]).then(function(url){results[idx]=url;}).catch(function(){results[idx]=null;}).then(function(){
+            doneCount++;
+            if(doneCount===arr.length)resolve(results.filter(function(x){return x}));
+            else launch();
+          });
+        })(next);
+        next++;
+      }
+    }
+    launch();
+  });
 }
 
-/* ===== 手势 ===== */
+function idbAvailable(){try{return window.indexedDB&&window.location.protocol!=='file:';}catch(e){return false}}
+function openIDB(){return new Promise(function(res,rej){
+  if(!idbAvailable()){rej(new Error('当前环境不支持 IndexedDB'));return;}
+  var req;try{req=indexedDB.open('draw_idb',2);}catch(e){rej(e);return;}
+  req.onupgradeneeded=function(e){try{var d=e.target.result;['categories','works','checkins','checkinLogs','plans','settings'].forEach(function(n){if(!d.objectStoreNames.contains(n))d.createObjectStore(n,{keyPath:'id'});});}catch(err){}};
+  req.onsuccess=function(e){idb=e.target.result;idb.onerror=function(){};idb.onversionchange=function(){try{idb.close()}catch(e){}};res()};
+  req.onerror=function(e){rej(e.target.error||new Error('IDB 打开失败'))};
+  req.onblocked=function(){rej(new Error('IDB 被其他页面占用'))};
+  setTimeout(function(){if(!idb)rej(new Error('IDB 打开超时'))},4000);
+});}
+function tx(s,m){return idb.transaction(s,m||'readonly').objectStore(s)}
+function idbAll(s){if(!idb)return Promise.resolve(memStore[s]?Object.values(memStore[s]):[]);return new Promise(function(res,rej){var r=tx(s).getAll();r.onsuccess=function(){res(r.result)};r.onerror=function(){rej(r.error)}})}
+function idbPut(s,o){if(!idb){memStore[s]=memStore[s]||{};memStore[s][o.id]=o;return Promise.resolve()}return new Promise(function(res,rej){var r=tx(s,'readwrite').put(o);r.onsuccess=function(){res()};r.onerror=function(){rej(r.error)}})}
+function idbDel(s,id){if(!idb){if(memStore[s])delete memStore[s][id];return Promise.resolve()}return new Promise(function(res,rej){var r=tx(s,'readwrite').delete(id);r.onsuccess=function(){res()};r.onerror=function(){rej(r.error)}})}
+function idbClear(s){if(!idb){memStore[s]={};return Promise.resolve()}return new Promise(function(res,rej){var r=tx(s,'readwrite').clear();r.onsuccess=function(){res()};r.onerror=function(){rej(r.error)}})}
+
 function bindTapAndDoubleTap(el,onSingle,onDouble){
   var lastTap=0,timer=null;
-  function handler(e){if(e){e.preventDefault();e.stopPropagation();}var now=Date.now();
-    if(now-lastTap<320){if(timer){clearTimeout(timer);timer=null;}lastTap=0;if(navigator.vibrate){try{navigator.vibrate(30)}catch(_){}}onDouble();}
-    else{lastTap=now;if(timer)clearTimeout(timer);timer=setTimeout(function(){timer=null;lastTap=0;onSingle();},300);}}
-  el.addEventListener('pointerup',function(e){if(e.pointerType==='mouse'&&e.button!==0)return;handler(e);});
+  function handler(e){if(e){e.preventDefault();e.stopPropagation()}var now=Date.now();
+    if(now-lastTap<320){if(timer){clearTimeout(timer);timer=null}lastTap=0;if(navigator.vibrate){try{navigator.vibrate(30)}catch(_){}}onDouble()}
+    else{lastTap=now;if(timer)clearTimeout(timer);timer=setTimeout(function(){timer=null;lastTap=0;onSingle()},300)}}
+  el.addEventListener('pointerup',function(e){if(e.pointerType==='mouse'&&e.button!==0)return;handler(e)});
   el.addEventListener('contextmenu',function(e){e.preventDefault()});
   el.addEventListener('click',function(e){e.preventDefault();e.stopPropagation()});
 }
 
-/* ===== 全屏图片查看器 ===== */
-function openImageViewer(imgs,idx,syncWork){viewerImgs=imgs||[];viewerIdx=idx||0;viewerSyncWork=!!syncWork;renderViewer();document.getElementById('imgViewerMask').classList.add('on');}
+function openImageViewer(imgs,idx,syncWork){viewerImgs=imgs||[];viewerIdx=idx||0;viewerSyncWork=!!syncWork;renderViewer();document.getElementById('imgViewerMask').classList.add('on')}
 function renderViewer(){
   var mask=document.getElementById('imgViewerMask'),imgEl=document.getElementById('imgViewerImg'),
       prev=document.getElementById('ivPrev'),next=document.getElementById('ivNext'),counter=document.getElementById('ivCounter');
@@ -349,84 +333,58 @@ function closeImageViewer(){
   var sync=viewerSyncWork,lastIdx=viewerIdx;
   document.getElementById('imgViewerMask').classList.remove('on');
   viewerImgs=[];viewerIdx=0;viewerSyncWork=false;
-  if(sync&&state.workId){state.workImgIdx=lastIdx;renderWorkView();}
+  if(sync&&state.workId){state.workImgIdx=lastIdx;renderWorkView()}
 }
-document.getElementById('ivClose').onclick=function(e){e.stopPropagation();closeImageViewer();};
-document.getElementById('ivPrev').onclick=function(e){e.stopPropagation();if(viewerIdx>0){viewerIdx--;renderViewer();}};
-document.getElementById('ivNext').onclick=function(e){e.stopPropagation();if(viewerIdx<viewerImgs.length-1){viewerIdx++;renderViewer();}};
+document.getElementById('ivClose').onclick=function(e){e.stopPropagation();closeImageViewer()};
+document.getElementById('ivPrev').onclick=function(e){e.stopPropagation();if(viewerIdx>0){viewerIdx--;renderViewer()}};
+document.getElementById('ivNext').onclick=function(e){e.stopPropagation();if(viewerIdx<viewerImgs.length-1){viewerIdx++;renderViewer()}};
 document.getElementById('imgViewerMask').addEventListener('click',function(e){
-  if(e.target.id==='imgViewerImg'){closeImageViewer();return}
-  if(e.target===this){closeImageViewer();return}
+  if(e.target.id==='imgViewerImg'||e.target===this)closeImageViewer();
 });
 
-/* ===== 作品/阶段工具 ===== */
-function workTotal(w){if(!w.stages||!w.stages.length)return 0;return w.stages[w.stages.length-1].cumulative||0}
+function workTotal(w){return(!w.stages||!w.stages.length)?0:(w.stages[w.stages.length-1].cumulative||0)}
 function stageDur(w,i){var prev=i===0?0:(w.stages[i-1].cumulative||0);return (w.stages[i].cumulative||0)-prev}
 function stageDurArr(stages,i){var prev=i===0?0:(stages[i-1].cumulative||0);return (stages[i].cumulative||0)-prev}
-function workCover(w){if(!w.stages||!w.stages.length)return null;
-  for(var i=w.stages.length-1;i>=0;i--){var imgs=w.stages[i].images;if(imgs&&imgs.length)return imgs[imgs.length-1];}return null;}
+function workCover(w){if(!w.stages||!w.stages.length)return null;for(var i=w.stages.length-1;i>=0;i--){var imgs=w.stages[i].images;if(imgs&&imgs.length)return imgs[imgs.length-1]}return null}
 function workImgCount(w){var n=0;(w.stages||[]).forEach(function(s){n+=(s.images||[]).length});return n}
-function workCreatedAt(w){if(w.createdAt)return w.createdAt;
-  if(w.stages&&w.stages.length&&w.stages[0].date)return new Date(w.stages[0].date+'T00:00:00').getTime();return null;}
-function getAllWorkImages(w){var a=[];(w.stages||[]).forEach(function(s){(s.images||[]).forEach(function(im){a.push(im)})});return a;}
+function workCreatedAt(w){if(w.createdAt)return w.createdAt;if(w.stages&&w.stages.length&&w.stages[0].date)return new Date(w.stages[0].date+'T00:00:00').getTime();return null}
+function getAllWorkImages(w){var a=[];(w.stages||[]).forEach(function(s){(s.images||[]).forEach(function(im){a.push(im)})});return a}
 
-/* ===== 节点：按时间轴顺延，一个作品可跨多个节点 ===== */
 function getAutoAssignedWorks(plan,allWorks){
-  var nodes = plan.nodes || [];
-  var assigned = nodes.map(function(n){return { node:n, works:[], totalMin:0, images:[], workMap:{} };});
-  var nodeRanges = [];
-  var cursor = 0;
-  nodes.forEach(function(n){
-    var hMin = (n.hours||0)*60;
-    nodeRanges.push({ start:cursor, end:cursor+hMin });
-    cursor += hMin;
-  });
-  var targetWorks = allWorks.filter(function(w){return String(w.planId)===String(plan.id);});
-  targetWorks.sort(function(a,b){return (workCreatedAt(a)||0)-(workCreatedAt(b)||0);});
-  var workCursor = 0;
+  var nodes=plan.nodes||[],assigned=nodes.map(function(n){return{node:n,works:[],totalMin:0,images:[],workMap:{}}}),nodeRanges=[],cursor=0;
+  nodes.forEach(function(n){var hMin=(n.hours||0)*60;nodeRanges.push({start:cursor,end:cursor+hMin});cursor+=hMin});
+  var targetWorks=allWorks.filter(function(w){return String(w.planId)===String(plan.id)});
+  targetWorks.sort(function(a,b){return (workCreatedAt(a)||0)-(workCreatedAt(b)||0)});
+  var workCursor=0;
   targetWorks.forEach(function(w){
-    var wTotal = workTotal(w);
-    var stageStart = 0;
+    var wTotal=workTotal(w),stageStart=0;
     (w.stages||[]).forEach(function(s){
-      var stageEnd = s.cumulative || 0;
-      var absStart = workCursor + stageStart;
-      var absEnd = workCursor + stageEnd;
-      var stageImgs = s.images || [];
-      nodeRanges.forEach(function(nr, idx){
-        var ovStart = Math.max(absStart, nr.start);
-        var ovEnd = Math.min(absEnd, nr.end);
-        if(ovEnd > ovStart){
-          assigned[idx].totalMin += (ovEnd - ovStart);
-          stageImgs.forEach(function(img){
-            if(assigned[idx].images.indexOf(img) < 0)assigned[idx].images.push(img);
-          });
-          if(!assigned[idx].workMap[w.id]){
-            assigned[idx].workMap[w.id] = true;
-            assigned[idx].works.push(w);
-          }
+      var stageEnd=s.cumulative||0,absStart=workCursor+stageStart,absEnd=workCursor+stageEnd,stageImgs=s.images||[];
+      nodeRanges.forEach(function(nr,idx){
+        var ovStart=Math.max(absStart,nr.start),ovEnd=Math.min(absEnd,nr.end);
+        if(ovEnd>ovStart){
+          assigned[idx].totalMin+=(ovEnd-ovStart);
+          stageImgs.forEach(function(img){if(assigned[idx].images.indexOf(img)<0)assigned[idx].images.push(img)});
+          if(!assigned[idx].workMap[w.id]){assigned[idx].workMap[w.id]=true;assigned[idx].works.push(w)}
         }
       });
-      stageStart = stageEnd;
+      stageStart=stageEnd;
     });
-    workCursor += wTotal;
+    workCursor+=wTotal;
   });
-  assigned.forEach(function(a){ delete a.workMap; });
+  assigned.forEach(function(a){delete a.workMap});
   return assigned;
 }
 
-/* ===== 通用 UI ===== */
 function starsHTML(rating,small,nomb){
-  var cls='stars'+(small?' sm':'')+(nomb?' nomb':'');
-  var h='<div class="'+cls+'">';
+  var cls='stars'+(small?' sm':'')+(nomb?' nomb':''),h='<div class="'+cls+'">';
   for(var i=1;i<=5;i++)h+='<span data-v="'+i+'" class="'+(i<=rating?'on':'')+'">★</span>';
   return h+'</div>';
 }
-function processImage(file){return new Promise(function(res,rej){var rd=new FileReader();rd.onload=function(e){res(e.target.result);};rd.onerror=rej;rd.readAsDataURL(file);});}
 function openModal(title,body,footer){
   var h='<div class="mask"><div class="modal"><div class="modal-h"><h2>'+esc(title)+'</h2><button class="x-btn" data-close>✕</button></div><div class="modal-b">'+body+'</div>';
   if(footer)h+='<div class="modal-f">'+footer+'</div>';
-  h+='</div></div>';
-  document.getElementById('modalRoot').innerHTML=h;
+  document.getElementById('modalRoot').innerHTML=h+'</div></div>';
   document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=closeModal});
 }
 function closeModal(){document.getElementById('modalRoot').innerHTML=''}
@@ -441,95 +399,82 @@ function go(tab){
     else if(tab==='stats'){actionEl.style.display='none';renderStats()}
     else if(tab==='checkins'){actionEl.style.display='block';actionEl.onclick=addCheckinOrPlan;renderCheckins()}
     else{actionEl.style.display='none';renderSettings()}
-  }catch(e){toast('页面渲染出错：'+(e.message||''));console.error(e);}
+  }catch(e){toast('页面渲染出错：'+(e.message||''));console.error(e)}
 }
 document.querySelectorAll('.tab').forEach(function(t){t.onclick=function(){go(t.dataset.t)}});
 backEl.onclick=function(){
-  var modalRoot=document.getElementById('modalRoot');
-  if(modalRoot&&modalRoot.innerHTML){closeModal();state._editWorkId=null;state._editStages=null;return;}
+  var mr=document.getElementById('modalRoot');
+  if(mr&&mr.innerHTML){closeModal();state._editWorkId=null;state._editStages=null;return}
   if(state.tab==='planDetail'){state.planId=null;state.nodeIdx=0;go('checkins')}
   else if(state.workId){state.workId=null;state.workImgIdx=0;state._editWorkId=null;state._editStages=null;renderCategoryView()}
   else if(state.category){go('collections')}
 };
 
-/* ===== 画集 ===== */
 function renderCollections(){
-  titleEl.textContent='画集';
-  actionEl.style.display='block';actionEl.onclick=addCategoryModal;
+  titleEl.textContent='画集';actionEl.style.display='block';actionEl.onclick=addCategoryModal;
   backEl.style.display='none';state.category=null;state.workId=null;
   if(!DB.categories.length){view.innerHTML='<div class="empty">还没有画集<br>点右上角 ＋ 新建分类</div>';return}
   var h='<div class="grid11">';
   DB.categories.forEach(function(c){
     var works=DB.works.filter(function(w){return w.category===c.name});
-    var total=works.reduce(function(s,w){return s+workTotal(w)},0);
-    var cover=null;
+    var total=works.reduce(function(s,w){return s+workTotal(w)},0),cover=null;
     for(var i=works.length-1;i>=0;i--){cover=workCover(works[i]);if(cover)break}
-    h+='<div class="cat-tile" data-cat="'+esc(c.name)+'"><div class="thumb">'+(cover?'<img src="'+cover+'">':'')+'</div>'
-      +'<div class="meta"><div class="nm">'+esc(c.name)+'</div><div class="tm">'+works.length+' 作品 · '+fmtDur(total)+'</div></div></div>';
+    h+='<div class="cat-tile" data-cat="'+esc(c.name)+'"><div class="thumb">'+(cover?'<img src="'+cover+'">':'')+'</div><div class="meta"><div class="nm">'+esc(c.name)+'</div><div class="tm">'+works.length+' 作品 · '+fmtDur(total)+'</div></div></div>';
   });
   view.innerHTML=h+'</div>';
   view.querySelectorAll('[data-cat]').forEach(function(el){el.onclick=function(){openCategory(el.dataset.cat)}});
 }
 function openCategory(name){state.category=name;state.workId=null;state.workImgIdx=0;renderCategoryView()}
 function renderCategoryView(){
-  titleEl.textContent=state.category;
-  backEl.style.display='block';actionEl.style.display='block';
+  titleEl.textContent=state.category;backEl.style.display='block';actionEl.style.display='block';
   actionEl.onclick=function(){addWorkModal(null,state.category)};
   var works=DB.works.filter(function(w){return w.category===state.category});
-  works.sort(function(a,b){return (workCreatedAt(b)||0)-(workCreatedAt(a)||0);});
+  works.sort(function(a,b){return (workCreatedAt(b)||0)-(workCreatedAt(a)||0)});
   var total=works.reduce(function(s,w){return s+workTotal(w)},0);
   var h='<div class="card" style="display:flex;justify-content:space-between;align-items:center"><div><div class="muted">累计时长</div><div class="big">'+fmtDur(total)+'</div></div><div style="text-align:right"><div class="muted">作品数</div><div style="font-size:20px;font-weight:600">'+works.length+'</div></div></div>';
   if(!works.length){view.innerHTML=h+'<div class="empty">还没有作品<br>点右上角 ＋ 添加</div>';return}
   h+='<div class="grid11">';
   works.forEach(function(w){
     var cover=workCover(w),ca=workCreatedAt(w);
-    h+='<div class="work-tile" data-work="'+w.id+'"><div class="thumb">'+(cover?'<img src="'+cover+'">':'')+'</div>'
-      +'<div class="meta">'+starsHTML(w.rating||0,true)+'<div class="tm">'+fmtDur(workTotal(w))+'</div>'+(ca?'<div class="dt">'+fmtTs(ca)+'</div>':'')+'</div></div>';
+    h+='<div class="work-tile" data-work="'+w.id+'"><div class="thumb">'+(cover?'<img src="'+cover+'">':'')+'</div><div class="meta">'+starsHTML(w.rating||0,true)+'<div class="tm">'+fmtDur(workTotal(w))+'</div>'+(ca?'<div class="dt">'+fmtTs(ca)+'</div>':'')+'</div></div>';
   });
   view.innerHTML=h+'</div>';
   view.querySelectorAll('[data-work]').forEach(function(el){el.onclick=function(){openWork(Number(el.dataset.work))}});
 }
 function openWork(id){state.workId=id;state.workImgIdx=0;renderWorkView()}
 
-/* ===== 作品详情 ===== */
 function renderWorkView(){
   var w=DB.works.find(function(x){return x.id===state.workId});
   if(!w){state.workId=null;renderCategoryView();return}
   titleEl.textContent='作品';backEl.style.display='block';actionEl.style.display='none';
-  var h='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px">'
-    +starsHTML(w.rating||0,false,true)+'<button class="work-menu-btn" id="workMenu">⋯</button></div>';
+  var h='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px">'+starsHTML(w.rating||0,false,true)+'<button class="work-menu-btn" id="workMenu">⋯</button></div>';
   var ca=workCreatedAt(w);
   if(ca)h+='<div class="muted" style="margin-top:10px">添加于 '+fmtTs(ca)+'</div>';
-  if(w.planId){var p=DB.plans.find(function(x){return Number(x.id)===Number(w.planId)});if(p)h+='<div class="muted" style="margin-top:4px">计划：'+esc(p.name)+'（按时间顺延）</div>';}
+  if(w.planId){var p=DB.plans.find(function(x){return Number(x.id)===Number(w.planId)});if(p)h+='<div class="muted" style="margin-top:4px">计划：'+esc(p.name)+'（按时间顺延）</div>'}
   if(w.note)h+='<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f2f2f5;white-space:pre-wrap">'+esc(w.note)+'</div>';
   h+='</div>';
   var imgList=[];
   (w.stages||[]).forEach(function(s,i){
     var prev=i===0?0:(w.stages[i-1].cumulative||0),dur=(s.cumulative||0)-prev;
-    (s.images||[]).forEach(function(img){imgList.push({img:img,stageIdx:i,dur:dur,cumulative:s.cumulative,note:s.note||'',date:s.date||''});});
+    (s.images||[]).forEach(function(img){imgList.push({img:img,stageIdx:i,dur:dur,cumulative:s.cumulative,note:s.note||'',date:s.date||''})});
   });
   imgList.reverse();
   if(imgList.length){
-    if(state.workImgIdx<0)state.workImgIdx=0;
-    if(state.workImgIdx>imgList.length-1)state.workImgIdx=imgList.length-1;
+    if(state.workImgIdx<0)state.workImgIdx=0;if(state.workImgIdx>imgList.length-1)state.workImgIdx=imgList.length-1;
     var cur=imgList[state.workImgIdx];
-    h+='<div class="img-viewer"><div class="img-nav"><button id="imgPrev"'+(state.workImgIdx===0?' disabled':'')+'>◀</button>'
-      +'<div class="img-counter">'+(state.workImgIdx+1)+' / '+imgList.length+'</div>'
-      +'<button id="imgNext"'+(state.workImgIdx===imgList.length-1?' disabled':'')+'>▶</button></div>'
-      +'<div class="img-stage-info">阶段 '+(cur.stageIdx+1)+' · 用时 '+fmtDur(cur.dur)+' · 累计 '+fmtDur(cur.cumulative)+(cur.date?' · '+esc(cur.date):'');
+    h+='<div class="img-viewer"><div class="img-nav"><button id="imgPrev"'+(state.workImgIdx===0?' disabled':'')+'>◀</button><div class="img-counter">'+(state.workImgIdx+1)+' / '+imgList.length+'</div><button id="imgNext"'+(state.workImgIdx===imgList.length-1?' disabled':'')+'>▶</button></div>';
+    h+='<div class="img-stage-info">阶段 '+(cur.stageIdx+1)+' · 用时 '+fmtDur(cur.dur)+' · 累计 '+fmtDur(cur.cumulative)+(cur.date?' · '+esc(cur.date):'');
     if(cur.note)h+='<div class="note">'+esc(cur.note)+'</div>';
     h+='</div><div class="img-big"><img src="'+cur.img+'" id="workBigImg" title="点击查看大图"></div></div>';
   }else h+='<div class="empty">还没有图片</div>';
   view.innerHTML=h;
-  var prevBtn=document.getElementById('imgPrev'),nextBtn=document.getElementById('imgNext');
-  if(prevBtn)prevBtn.onclick=function(){if(state.workImgIdx>0){state.workImgIdx--;renderWorkView();}};
-  if(nextBtn)nextBtn.onclick=function(){if(state.workImgIdx<imgList.length-1){state.workImgIdx++;renderWorkView();}};
+  var pb=document.getElementById('imgPrev'),nb=document.getElementById('imgNext');
+  if(pb)pb.onclick=function(){if(state.workImgIdx>0){state.workImgIdx--;renderWorkView()}};
+  if(nb)nb.onclick=function(){if(state.workImgIdx<imgList.length-1){state.workImgIdx++;renderWorkView()}};
   var big=document.getElementById('workBigImg');
-  if(big)big.onclick=function(){openImageViewer(imgList.map(function(x){return x.img}),state.workImgIdx,true);};
-  var starsEl=view.querySelector('.stars');
-  starsEl.querySelectorAll('span').forEach(function(s){
-    s.onclick=function(){w.rating=Number(s.dataset.v);idbPut('works',w).then(function(){renderWorkView();});};
-  });
+  if(big)big.onclick=function(){openImageViewer(imgList.map(function(x){return x.img}),state.workImgIdx,true)};
+  var se=view.querySelector('.stars');
+  se.querySelectorAll('span').forEach(function(s){s.onclick=function(){w.rating=Number(s.dataset.v);idbPut('works',w).then(function(){renderWorkView()})}});
   document.getElementById('workMenu').onclick=function(){
     openModal('作品操作','<button class="btn" id="wedit" style="margin-bottom:10px">编辑作品</button><button class="btn o" id="wdel" style="color:#c33">删除作品</button>','<button class="btn o" data-close>取消</button>');
     document.getElementById('wedit').onclick=function(){closeModal();addWorkModal(w,w.category)};
@@ -537,9 +482,7 @@ function renderWorkView(){
       if(!confirm('确定删除这个作品？'))return;
       idbDel('works',w.id).then(function(){
         DB.works=DB.works.filter(function(x){return x.id!==w.id});
-        closeModal();toast('已删除');state.workId=null;state.workImgIdx=0;
-        state._editWorkId=null;state._editStages=null;
-        renderCategoryView();
+        closeModal();toast('已删除');state.workId=null;state.workImgIdx=0;state._editWorkId=null;state._editStages=null;renderCategoryView();
       });
     };
   };
@@ -552,22 +495,15 @@ function addCategoryModal(){
     if(!n){toast('请输入名称');return}
     if(DB.categories.some(function(c){return c.name===n})){toast('已存在');return}
     var c={id:uid(),name:n};DB.categories.push(c);
-    idbPut('categories',c).then(function(){closeModal();toast('已创建');renderCollections();});
+    idbPut('categories',c).then(function(){closeModal();toast('已创建');renderCollections()});
   };
 }
 
-/* ===== 添加/编辑作品 ===== */
 function addWorkModal(work,category){
-  var editing=!!work,rating=work?work.rating:0,newFiles=[];
-  var defH=editing?'':'1',defM=editing?'':'30';
-  var editStages=null;
+  var editing=!!work,rating=work?work.rating:0,newFiles=[],defH=editing?'':'1',defM=editing?'':'30',editStages=null;
   if(editing){
-    if(state._editWorkId===work.id && state._editStages){editStages=state._editStages;}
-    else{
-      try{editStages=JSON.parse(JSON.stringify(work.stages||[]));}
-      catch(e){editStages=(work.stages||[]).map(function(s){return {images:(s.images||[]).slice(),cumulative:s.cumulative,date:s.date,note:s.note};});}
-      state._editWorkId=work.id;state._editStages=editStages;
-    }
+    if(state._editWorkId===work.id&&state._editStages){editStages=state._editStages}
+    else{try{editStages=JSON.parse(JSON.stringify(work.stages||[]))}catch(e){editStages=(work.stages||[]).map(function(s){return{images:(s.images||[]).slice(),cumulative:s.cumulative,date:s.date,note:s.note}})}state._editWorkId=work.id;state._editStages=editStages}
   }
   var body='<label class="fld">分类</label><select id="wf-cat">';
   DB.categories.forEach(function(c){body+='<option value="'+esc(c.name)+'"'+(c.name===category?' selected':'')+'>'+esc(c.name)+'</option>'});
@@ -583,30 +519,20 @@ function addWorkModal(work,category){
     editStages.forEach(function(stage,idx){
       var prevCum=idx===0?0:(editStages[idx-1].cumulative||0),dur=(stage.cumulative||0)-prevCum;
       body+='<div class="existing-stage-row"><div class="existing-stage-label">阶段 '+(idx+1)+' · '+fmtDur(dur)+' · 累计 '+fmtDur(stage.cumulative)+(stage.note?' · '+esc(stage.note):'')+'</div>';
-      if(stage.images&&stage.images.length){
-        body+='<div class="existing-stage-thumbs">';
-        stage.images.forEach(function(img,i){body+='<img src="'+img+'" data-stageimg="'+idx+'_'+i+'">'});
-        body+='</div>';
-      }
-      body+='<div class="stage-btn-row"><button class="btn o" id="stage-edit-btn-'+idx+'" type="button">编辑 / 换图</button>'
-        +'<button class="btn o" id="stage-del-btn-'+idx+'" type="button" style="color:#c33">删除</button></div></div>';
+      if(stage.images&&stage.images.length){body+='<div class="existing-stage-thumbs">';stage.images.forEach(function(img,i){body+='<img src="'+img+'" data-stageimg="'+idx+'_'+i+'">'});body+='</div>'}
+      body+='<div class="stage-btn-row"><button class="btn o" id="stage-edit-btn-'+idx+'" type="button">编辑 / 换图</button><button class="btn o" id="stage-del-btn-'+idx+'" type="button" style="color:#c33">删除</button></div></div>';
     });
     body+='</div>';
   }
   if(editing)body+='<div class="muted" style="margin:10px 0 8px;font-weight:500">添加新阶段（可选）</div>';
-  body+='<label class="fld">图片（可多选，不限张数，按原图保存；已选图片可单独删除）</label>'
-    +'<input type="file" id="wf-file" accept="image/*" multiple>'
-    +'<div id="wf-prev" class="grid34" style="margin-top:10px"></div>';
+  body+='<label class="fld">图片（可多选，自动压缩，长边最多1600px；已选图片可单独删除）</label><input type="file" id="wf-file" accept="image/*" multiple><div id="wf-prev" class="grid34" style="margin-top:10px"></div>';
   body+='<label class="fld">'+(editing?'新阶段累计总时长':'累计总时长')+'</label>';
   body+='<div class="dur-row"><input type="number" id="wf-h" min="0" placeholder="时" value="'+defH+'"><span class="lbl">时</span><input type="number" id="wf-m" min="0" max="59" placeholder="分" value="'+defM+'"><span class="lbl">分</span></div>';
   body+='<label class="fld">日期</label><input type="date" id="wf-date" value="'+today()+'">';
   body+='<label class="fld">阶段备注（可选）</label><textarea id="wf-snote"></textarea>';
   openModal(editing?'编辑作品':'添加作品',body,'<button class="btn o" data-close>取消</button><button class="btn" id="wf-save">保存</button>');
-
   var starsEl=document.getElementById('wf-stars');
-  starsEl.querySelectorAll('span').forEach(function(s){
-    s.onclick=function(){rating=Number(s.dataset.v);starsEl.querySelectorAll('span').forEach(function(x){x.classList.toggle('on',Number(x.dataset.v)<=rating)});};
-  });
+  starsEl.querySelectorAll('span').forEach(function(s){s.onclick=function(){rating=Number(s.dataset.v);starsEl.querySelectorAll('span').forEach(function(x){x.classList.toggle('on',Number(x.dataset.v)<=rating)})}});
   document.querySelectorAll('[data-stageimg]').forEach(function(el){
     el.onclick=function(e){
       e.stopPropagation();
@@ -618,7 +544,7 @@ function addWorkModal(work,category){
   if(editing&&editStages){
     editStages.forEach(function(stage,idx){
       var eb=document.getElementById('stage-edit-btn-'+idx);
-      if(eb)eb.onclick=function(e){e.preventDefault();e.stopPropagation();openEditStageModal(editStages,idx,work);};
+      if(eb)eb.onclick=function(e){e.preventDefault();e.stopPropagation();openEditStageModal(editStages,idx,work)};
       var db=document.getElementById('stage-del-btn-'+idx);
       if(db)db.onclick=function(e){
         e.preventDefault();e.stopPropagation();
@@ -633,20 +559,22 @@ function addWorkModal(work,category){
   function renderNewPreview(){
     var p=document.getElementById('wf-prev');if(!p)return;
     p.innerHTML='';
-    newFiles.forEach(function(f,i){
+    newFiles.forEach(function(url,i){
       var d=document.createElement('div');d.className='newthumb';
-      d.innerHTML='<img data-ph="'+i+'"><button class="rm" type="button" data-rm="'+i+'">×</button>';
+      d.innerHTML='<img src="'+url+'"><button class="rm" type="button" data-rm="'+i+'">×</button>';
       p.appendChild(d);
-      var rd=new FileReader();
-      rd.onload=function(ev){var img=d.querySelector('[data-ph]');if(img)img.src=ev.target.result;};
-      rd.readAsDataURL(f);
     });
-    p.querySelectorAll('[data-rm]').forEach(function(b){
-      b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();newFiles.splice(Number(b.dataset.rm),1);renderNewPreview();};
-    });
+    p.querySelectorAll('[data-rm]').forEach(function(b){b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();newFiles.splice(Number(b.dataset.rm),1);renderNewPreview()}});
   }
   var fileEl=document.getElementById('wf-file');
-  if(fileEl)fileEl.onchange=function(e){newFiles=newFiles.concat([].slice.call(e.target.files||[]));renderNewPreview();try{e.target.value='';}catch(_){}};
+  if(fileEl)fileEl.onchange=function(e){
+    var files=[].slice.call(e.target.files||[]);
+    if(!files.length)return;
+    var p=document.getElementById('wf-prev');
+    if(p)p.innerHTML='<div class="muted" style="grid-column:1/-1;text-align:center;padding:10px">正在压缩 '+files.length+' 张图片…</div>';
+    processImageList(files).then(function(urls){newFiles=newFiles.concat(urls);renderNewPreview();if(urls.length<files.length)toast('部分图片处理失败，已跳过')});
+    try{e.target.value=''}catch(_){}
+  };
   var planSel=document.getElementById('wf-plan');
   document.getElementById('wf-save').onclick=function(){
     if(!rating){toast('请先评分');return}
@@ -654,89 +582,53 @@ function addWorkModal(work,category){
     if(planSel&&planSel.value)planId=Number(planSel.value);
     if(editing){
       work.category=cat;work.note=note;work.planId=planId;work.rating=rating;
-      work.stages=editStages.map(function(s){return {images:(s.images||[]).slice(),cumulative:s.cumulative,date:s.date,note:s.note};});
+      work.stages=editStages.map(function(s){return{images:(s.images||[]).slice(),cumulative:s.cumulative,date:s.date,note:s.note}});
       if(newFiles.length){
         var cum=(parseInt(document.getElementById('wf-h').value)||0)*60+(parseInt(document.getElementById('wf-m').value)||0);
         var date=document.getElementById('wf-date').value||today(),snote=document.getElementById('wf-snote').value.trim();
         var lastCum=workTotal(work);
         if(cum<=lastCum){toast('新累计时长须大于 '+fmtDur(lastCum));return}
-        var done=0,newImages=[];
-        newFiles.forEach(function(f){
-          processImage(f).then(function(d){
-            newImages.push(d);done++;
-            if(done===newFiles.length){
-              work.stages.push({images:newImages,cumulative:cum,date:date,note:snote});
-              idbPut('works',work).then(function(){state._editWorkId=null;state._editStages=null;closeModal();toast('已保存');renderWorkView();});
-            }
-          });
-        });
-      }else{
-        idbPut('works',work).then(function(){state._editWorkId=null;state._editStages=null;closeModal();toast('已保存');renderWorkView();});
-      }
+        work.stages.push({images:newFiles.slice(),cumulative:cum,date:date,note:snote});
+        idbPut('works',work).then(function(){state._editWorkId=null;state._editStages=null;closeModal();toast('已保存');renderWorkView()});
+      }else idbPut('works',work).then(function(){state._editWorkId=null;state._editStages=null;closeModal();toast('已保存');renderWorkView()});
     }else{
       if(!newFiles.length){toast('请选择图片');return}
       var cum2=(parseInt(document.getElementById('wf-h').value)||0)*60+(parseInt(document.getElementById('wf-m').value)||0);
       if(cum2<=0){toast('请输入累计时长');return}
       var date2=document.getElementById('wf-date').value||today(),snote2=document.getElementById('wf-snote').value.trim();
-      var done2=0,images=[];
-      newFiles.forEach(function(f){
-        processImage(f).then(function(d){
-          images.push(d);done2++;
-          if(done2===newFiles.length){
-            var nw={id:uid(),category:cat,rating:rating,planId:planId,note:note,createdAt:Date.now(),stages:[{images:images,cumulative:cum2,date:date2,note:snote2}]};
-            DB.works.push(nw);
-            idbPut('works',nw).then(function(){closeModal();toast('已添加');renderCategoryView();});
-          }
-        });
-      });
+      var nw={id:uid(),category:cat,rating:rating,planId:planId,note:note,createdAt:Date.now(),stages:[{images:newFiles.slice(),cumulative:cum2,date:date2,note:snote2}]};
+      DB.works.push(nw);
+      idbPut('works',nw).then(function(){closeModal();toast('已添加');renderCategoryView()});
     }
   };
-  document.querySelectorAll('[data-close]').forEach(function(b){
-    b.onclick=function(){state._editWorkId=null;state._editStages=null;closeModal();};
-  });
+  document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=function(){state._editWorkId=null;state._editStages=null;closeModal()}});
 }
 
-/* ===== 图片操作菜单 ===== */
 function showImgActionMenu(imgs,idx,onReplace,onDelete){
   var old=document.getElementById('imgActMenu');if(old)old.remove();
   var m=document.createElement('div');m.id='imgActMenu';
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:250;display:flex;align-items:flex-end;justify-content:center';
   var inner=document.createElement('div');
   inner.style.cssText='background:#fff;width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:16px';
-  inner.innerHTML='<div style="font-weight:600;margin-bottom:12px;text-align:center">图片操作（'+(idx+1)+'/'+imgs.length+'）</div>'
-    +'<button class="btn o" id="iamView" style="margin-bottom:10px">查看大图</button>'
-    +'<button class="btn o" id="iamReplace" style="margin-bottom:10px">替换这张图片</button>'
-    +'<button class="btn o" id="iamDelete" style="color:#c33;margin-bottom:10px">删除这张图片</button>'
-    +'<button class="btn" id="iamCancel">取消</button>';
+  inner.innerHTML='<div style="font-weight:600;margin-bottom:12px;text-align:center">图片操作（'+(idx+1)+'/'+imgs.length+'）</div><button class="btn o" id="iamView" style="margin-bottom:10px">查看大图</button><button class="btn o" id="iamReplace" style="margin-bottom:10px">替换这张图片</button><button class="btn o" id="iamDelete" style="color:#c33;margin-bottom:10px">删除这张图片</button><button class="btn" id="iamCancel">取消</button>';
   m.appendChild(inner);document.body.appendChild(m);
-  function close(){m.remove();}
-  m.addEventListener('click',function(e){if(e.target===m)close();});
+  function close(){m.remove()}
+  m.addEventListener('click',function(e){if(e.target===m)close()});
   inner.querySelector('#iamCancel').onclick=close;
-  inner.querySelector('#iamView').onclick=function(){close();openImageViewer(imgs,idx,false);};
+  inner.querySelector('#iamView').onclick=function(){close();openImageViewer(imgs,idx,false)};
   inner.querySelector('#iamReplace').onclick=function(){
-    close();
-    var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
-    inp.onchange=function(e){var f=e.target.files[0];if(!f)return;processImage(f).then(function(d){onReplace(d);toast('已替换，记得点“保存”');});};
+    close();var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+    inp.onchange=function(e){var f=e.target.files[0];if(!f)return;processImage(f).then(function(d){onReplace(d);toast('已替换，记得点“保存”')})};
     inp.click();
   };
-  inner.querySelector('#iamDelete').onclick=function(){close();if(!confirm('删除这张图片？'))return;onDelete();toast('已删除，记得点“保存”');};
+  inner.querySelector('#iamDelete').onclick=function(){close();if(!confirm('删除这张图片？'))return;onDelete();toast('已删除，记得点“保存”')};
 }
 
-/* ===== 编辑阶段 ===== */
 function openEditStageModal(stages,idx,work){
   var stage=stages[idx];if(!stage)return;
-  var prevCum=idx===0?0:(stages[idx-1].cumulative||0);
-  var oldDur=(stage.cumulative||0)-prevCum;
-  var oldH=Math.floor(oldDur/60),oldM=oldDur%60;
-  var editImages=(stage.images||[]).slice();
-  var body='<label class="fld">本阶段用时（不能小于原来，可留空不改）</label>'
-    +'<div class="dur-row"><input type="number" id="edit-h" min="0" placeholder="时" value="'+oldH+'"><span class="lbl">时</span><input type="number" id="edit-m" min="0" max="59" placeholder="分" value="'+oldM+'"><span class="lbl">分</span></div>'
-    +'<div class="muted" style="margin-top:-6px;margin-bottom:12px">原用时：'+fmtDur(oldDur)+'</div>'
-    +'<label class="fld">日期</label><input type="date" id="edit-date" value="'+(stage.date||today())+'">'
-    +'<label class="fld">备注</label><textarea id="edit-note">'+esc(stage.note||'')+'</textarea>'
-    +'<label class="fld">阶段图片（点图片可替换 / 删除 / 查看大图）</label>'
-    +'<div id="edit-imgs-wrap"></div>'
-    +'<label class="fld" style="margin-top:8px">追加图片（可多选）</label><input type="file" id="edit-add-img" accept="image/*" multiple>';
+  var prevCum=idx===0?0:(stages[idx-1].cumulative||0),oldDur=(stage.cumulative||0)-prevCum;
+  var oldH=Math.floor(oldDur/60),oldM=oldDur%60,editImages=(stage.images||[]).slice();
+  var body='<label class="fld">本阶段用时（不能小于原来，可留空不改）</label><div class="dur-row"><input type="number" id="edit-h" min="0" placeholder="时" value="'+oldH+'"><span class="lbl">时</span><input type="number" id="edit-m" min="0" max="59" placeholder="分" value="'+oldM+'"><span class="lbl">分</span></div><div class="muted" style="margin-top:-6px;margin-bottom:12px">原用时：'+fmtDur(oldDur)+'</div><label class="fld">日期</label><input type="date" id="edit-date" value="'+(stage.date||today())+'"><label class="fld">备注</label><textarea id="edit-note">'+esc(stage.note||'')+'</textarea><label class="fld">阶段图片（点图片可替换 / 删除 / 查看大图）</label><div id="edit-imgs-wrap"></div><label class="fld" style="margin-top:8px">追加图片（可多选，自动压缩）</label><input type="file" id="edit-add-img" accept="image/*" multiple>';
   openModal('编辑阶段 '+(idx+1),body,'<button class="btn o" data-close>取消</button><button class="btn" id="edit-save">保存</button>');
   function refreshImgArea(){
     var wrap=document.getElementById('edit-imgs-wrap');if(!wrap)return;
@@ -748,19 +640,21 @@ function openEditStageModal(stages,idx,work){
         el.onclick=function(e){
           e.stopPropagation();
           var i=Number(el.dataset.esi);
-          showImgActionMenu(editImages,i,function(newImg){editImages[i]=newImg;refreshImgArea();},function(){editImages.splice(i,1);refreshImgArea();});
+          showImgActionMenu(editImages,i,function(newImg){editImages[i]=newImg;refreshImgArea()},function(){editImages.splice(i,1);refreshImgArea()});
         };
       });
-    }else{wrap.innerHTML='<div class="muted" style="margin-bottom:8px">暂无图片</div>';}
+    }else wrap.innerHTML='<div class="muted" style="margin-bottom:8px">暂无图片</div>';
   }
   refreshImgArea();
   var af=document.getElementById('edit-add-img');
   if(af)af.onchange=function(e){
     var files=[].slice.call(e.target.files||[]);if(!files.length)return;
-    var done=0;
-    files.forEach(function(f){processImage(f).then(function(d){editImages.push(d);done++;if(done===files.length)refreshImgArea();});});
+    var wrap=document.getElementById('edit-imgs-wrap');
+    if(wrap)wrap.innerHTML='<div class="muted" style="margin-bottom:8px">正在压缩 '+files.length+' 张…</div>';
+    processImageList(files).then(function(urls){editImages=editImages.concat(urls);refreshImgArea()});
+    try{e.target.value=''}catch(_){}
   };
-  document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=function(){closeModal();setTimeout(function(){addWorkModal(work,work.category);},100);};});
+  document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=function(){closeModal();setTimeout(function(){addWorkModal(work,work.category)},100)}});
   document.getElementById('edit-save').onclick=function(){
     var hVal=document.getElementById('edit-h').value.trim(),mVal=document.getElementById('edit-m').value.trim();
     var newDate=document.getElementById('edit-date').value,newNote=document.getElementById('edit-note').value.trim();
@@ -772,12 +666,10 @@ function openEditStageModal(stages,idx,work){
       for(var i=idx+1;i<stages.length;i++)stages[i].cumulative=(stages[i].cumulative||0)+diff;
     }
     stage.date=newDate;stage.note=newNote;stage.images=editImages.slice();
-    toast('阶段已修改，点“保存”生效');closeModal();
-    setTimeout(function(){addWorkModal(work,work.category);},100);
+    toast('阶段已修改，点“保存”生效');closeModal();setTimeout(function(){addWorkModal(work,work.category)},100);
   };
 }
 
-/* ===== 打卡 + 计划 ===== */
 function addCheckinOrPlan(){
   openModal('新建','<button class="btn" id="newCk" style="margin-bottom:10px">新建打卡项</button><button class="btn o" id="newPlan">新建计划</button>','<button class="btn o" data-close>取消</button>');
   document.getElementById('newCk').onclick=function(){closeModal();addCheckinModal()};
@@ -790,7 +682,7 @@ function addCheckinModal(){
     if(!n){toast('请输入名称');return}
     if(DB.checkins.length>=50){toast('最多 50 个');return}
     var c={id:uid(),name:n};DB.checkins.push(c);
-    idbPut('checkins',c).then(function(){closeModal();toast('已创建');renderCheckins();});
+    idbPut('checkins',c).then(function(){closeModal();toast('已创建');renderCheckins()});
   };
 }
 function editCheckinModal(id){
@@ -798,13 +690,11 @@ function editCheckinModal(id){
   openModal('编辑打卡项','<label class="fld">名称</label><input id="ck-name" value="'+esc(c.name)+'">','<button class="btn o" data-close>取消</button><button class="btn" id="ck-save">保存</button>');
   document.getElementById('ck-save').onclick=function(){
     var n=document.getElementById('ck-name').value.trim();if(!n){toast('请输入名称');return}
-    c.name=n;idbPut('checkins',c).then(function(){closeModal();toast('已保存');renderCheckins();});
+    c.name=n;idbPut('checkins',c).then(function(){closeModal();toast('已保存');renderCheckins()});
   };
 }
 function addPlanModal(){
-  var body='<label class="fld">计划名称</label><input id="pl-name" placeholder="如：120 小时人体练习">'
-    +'<label class="fld">总目标时长（小时）</label><input type="number" id="pl-hours" placeholder="120">'
-    +'<label class="fld">节点数</label><input type="number" id="pl-count" value="3" min="1" placeholder="3">';
+  var body='<label class="fld">计划名称</label><input id="pl-name" placeholder="如：120 小时人体练习"><label class="fld">总目标时长（小时）</label><input type="number" id="pl-hours" placeholder="120"><label class="fld">节点数</label><input type="number" id="pl-count" value="3" min="1" placeholder="3">';
   openModal('新建计划',body,'<button class="btn o" data-close>取消</button><button class="btn" id="pl-save">创建</button>');
   document.getElementById('pl-save').onclick=function(){
     var n=document.getElementById('pl-name').value.trim();
@@ -817,77 +707,53 @@ function addPlanModal(){
     var each=h/c,ns=[];
     for(var i=1;i<=c;i++)ns.push({id:uid(),name:'节点 '+i,hours:each,coverImg:null});
     var p={id:uid(),name:n,totalHours:h,nodes:ns};DB.plans.push(p);
-    idbPut('plans',p).then(function(){closeModal();toast('已创建');renderCheckins();});
+    idbPut('plans',p).then(function(){closeModal();toast('已创建');renderCheckins()});
   };
 }
-
-/* ===== 打卡日历 + 月度统计 ===== */
 function checkinCalendarHTML(id){
-  var off=state.checkinCalMonth[id]||0;
-  var now=new Date();
-  var base=new Date(now.getFullYear(),now.getMonth()-off,1);
-  var y=base.getFullYear(),m=base.getMonth();
+  var off=state.checkinCalMonth[id]||0,now=new Date();
+  var base=new Date(now.getFullYear(),now.getMonth()-off,1),y=base.getFullYear(),m=base.getMonth();
   var logs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)===Number(id)});
   var set={};logs.forEach(function(l){set[l.date]=l});
-  var prefix=y+'-'+pad(m+1);
-
-  var monthCount=0,curStreak=0,maxStreak=0;
+  var prefix=y+'-'+pad(m+1),monthCount=0,curStreak=0,maxStreak=0;
   var daysInMonth=new Date(y,m+1,0).getDate();
   for(var d=1;d<=daysInMonth;d++){
     var dsCheck=prefix+'-'+pad(d);
-    if(set[dsCheck]){monthCount++;curStreak++;if(curStreak>maxStreak)maxStreak=curStreak;}
+    if(set[dsCheck]){monthCount++;curStreak++;if(curStreak>maxStreak)maxStreak=curStreak}
     else curStreak=0;
   }
   var totalCount=logs.length;
-
-  var statsHTML='<div class="ck-stats">'
-    +'<div class="ck-stat"><div class="num">'+monthCount+'<small>次</small></div><div class="lbl">本月打卡</div></div>'
-    +'<div class="ck-stat"><div class="num">'+maxStreak+'<small>天</small></div><div class="lbl">当月最长连续</div></div>'
-    +'</div>';
-
-  var monthNav='<div class="cal-month-nav">'
-    +'<button class="cal-nav-btn" data-ckprev="'+id+'" type="button">‹</button>'
-    +'<span class="cal-month-label">'+y+'年'+(m+1)+'月'+(off===0?' · 本月':'')+'</span>'
-    +'<button class="cal-nav-btn" data-cknext="'+id+'" type="button"'+(off===0?' disabled':'')+'>›</button>'
-    +'</div>';
-
-  var first=new Date(y,m,1),sp=(first.getDay()+6)%7,days=daysInMonth;
-  var cells='';
+  var statsHTML='<div class="ck-stats"><div class="ck-stat"><div class="num">'+monthCount+'<small>次</small></div><div class="lbl">本月打卡</div></div><div class="ck-stat"><div class="num">'+maxStreak+'<small>天</small></div><div class="lbl">当月最长连续</div></div></div>';
+  var monthNav='<div class="cal-month-nav"><button class="cal-nav-btn" data-ckprev="'+id+'" type="button">‹</button><span class="cal-month-label">'+y+'年'+(m+1)+'月'+(off===0?' · 本月':'')+'</span><button class="cal-nav-btn" data-cknext="'+id+'" type="button"'+(off===0?' disabled':'')+'>›</button></div>';
+  var first=new Date(y,m,1),sp=(first.getDay()+6)%7,days=daysInMonth,cells='';
   ['一','二','三','四','五','六','日'].forEach(function(w){cells+='<div class="w">'+w+'</div>'});
   for(var i=0;i<sp;i++)cells+='<div></div>';
   var td=today();
   for(var d2=1;d2<=days;d2++){
     var ds=prefix+'-'+pad(d2);
-    var hasLog=!!set[ds];
-    var hasNote=hasLog&&set[ds].note;
-    var isFuture=ds>td;
-    cells+='<div class="d'+(hasLog?' has':'')+(ds===td?' today':'')+(hasNote?' has-note':'')+(isFuture?' future':'')+'" data-ckdate="'+ds+'" data-ckid="'+id+'">'
-      +'<span class="dd">'+d2+'</span>'
-      +'<span class="dur">'+(hasLog?'✓':'')+'</span>'
-      +'</div>';
+    var hasLog=!!set[ds],hasNote=hasLog&&set[ds].note,isFuture=ds>td;
+    cells+='<div class="d'+(hasLog?' has':'')+(ds===td?' today':'')+(hasNote?' has-note':'')+(isFuture?' future':'')+'" data-ckdate="'+ds+'" data-ckid="'+id+'"><span class="dd">'+d2+'</span><span class="dur">'+(hasLog?'✓':'')+'</span></div>';
   }
   var noteCount=logs.filter(function(l){return l.note}).length;
   var tip='<div class="muted" style="margin-bottom:10px">共 '+totalCount+' 次打卡'+(noteCount?' · '+noteCount+' 条备注':'')+' · 点日期补卡 · 点已打卡日期写备注 · 双击取消</div>';
-
-  return statsHTML + monthNav + tip + '<div class="cal">'+cells+'</div>';
+  return statsHTML+monthNav+tip+'<div class="cal">'+cells+'</div>';
 }
 function openCheckinNoteModal(checkinId,date){
   var log=DB.checkinLogs.find(function(l){return Number(l.checkinId)===Number(checkinId)&&l.date===date});
   if(!log){toast('这天没有打卡记录');return}
   var ck=DB.checkins.find(function(x){return Number(x.id)===Number(checkinId)});
-  var body='<div class="muted" style="margin-bottom:10px">'+esc(ck?ck.name:'')+' · '+esc(date)+'</div>'
-    +'<label class="fld">打卡备注（可留空）</label><textarea id="ck-note-input" placeholder="今天画了什么？感受如何？" style="min-height:100px">'+esc(log.note||'')+'</textarea>';
+  var body='<div class="muted" style="margin-bottom:10px">'+esc(ck?ck.name:'')+' · '+esc(date)+'</div><label class="fld">打卡备注（可留空）</label><textarea id="ck-note-input" placeholder="今天画了什么？感受如何？" style="min-height:100px">'+esc(log.note||'')+'</textarea>';
   openModal('打卡备注',body,'<button class="btn o" data-close>取消</button><button class="btn" id="ck-note-save">保存</button>');
   document.getElementById('ck-note-save').onclick=function(){
     var v=document.getElementById('ck-note-input').value.trim();log.note=v||'';
-    idbPut('checkinLogs',log).then(function(){closeModal();toast(v?'备注已保存':'备注已清空');renderCheckins();});
+    idbPut('checkinLogs',log).then(function(){closeModal();toast(v?'备注已保存':'备注已清空');renderCheckins()});
   };
 }
 function addCheckinOnDate(checkinId,date){
   if(date>today()){toast('不能给未来日期打卡');return}
   if(DB.checkinLogs.some(function(l){return Number(l.checkinId)===Number(checkinId)&&l.date===date})){toast('这天已打卡');return}
   var log={id:uid(),checkinId:checkinId,date:date,note:''};DB.checkinLogs.push(log);
-  idbPut('checkinLogs',log).then(function(){toast('已补卡 '+date);renderCheckins();});
+  idbPut('checkinLogs',log).then(function(){toast('已补卡 '+date);renderCheckins()});
 }
 function removeCheckinOnDate(checkinId,date){
   var log=DB.checkinLogs.find(function(l){return Number(l.checkinId)===Number(checkinId)&&l.date===date});
@@ -900,13 +766,13 @@ function removeCheckinOnDate(checkinId,date){
 function toggleCheckinMonth(id){
   state.openCheckin=(Number(state.openCheckin)===Number(id))?null:id;
   var el=document.getElementById('cm-'+id);
-  if(el){if(Number(state.openCheckin)===Number(id))el.classList.remove('hidden');else el.classList.add('hidden');}
+  if(el){if(Number(state.openCheckin)===Number(id))el.classList.remove('hidden');else el.classList.add('hidden')}
 }
 function doCheckin(id){
   var t=today();
   if(DB.checkinLogs.find(function(l){return Number(l.checkinId)===Number(id)&&l.date===t})){openCheckinNoteModal(id,t);return}
   var log={id:uid(),checkinId:id,date:t,note:''};DB.checkinLogs.push(log);
-  idbPut('checkinLogs',log).then(function(){toast('打卡成功，再点一次可写备注');renderCheckins();});
+  idbPut('checkinLogs',log).then(function(){toast('打卡成功，再点一次可写备注');renderCheckins()});
 }
 function cancelCheckin(id){
   var t=today();
@@ -920,10 +786,8 @@ function cancelCheckin(id){
 function streakCount(logs){
   if(!logs.length)return 0;
   var set={};logs.forEach(function(d){set[d]=1});
-  var cur=new Date();
-  if(!set[fmtDate(cur)])cur.setDate(cur.getDate()-1);
-  var n=0;
-  while(set[fmtDate(cur)]){n++;cur.setDate(cur.getDate()-1)}
+  var cur=new Date();if(!set[fmtDate(cur)])cur.setDate(cur.getDate()-1);
+  var n=0;while(set[fmtDate(cur)]){n++;cur.setDate(cur.getDate()-1)}
   return n;
 }
 function renderCheckins(){
@@ -936,14 +800,11 @@ function renderCheckins(){
       var allLogs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)===Number(c.id)});
       var logs=allLogs.map(function(l){return l.date}).sort();
       var last=logs[logs.length-1],info='还没有打卡';
-      if(last){var days=Math.round((new Date(today())-new Date(last))/86400000);info='距今天 '+days+' 天';}
+      if(last){var days=Math.round((new Date(today())-new Date(last))/86400000);info='距今天 '+days+' 天'}
       var sc=streakCount(logs),doneToday=logs.indexOf(today())>=0,opened=Number(state.openCheckin)===Number(c.id);
       var todayLog=allLogs.find(function(l){return l.date===today()}),notePrev='';
       if(todayLog&&todayLog.note)notePrev=' · 📝'+todayLog.note.slice(0,12)+(todayLog.note.length>12?'…':'');
-      h+='<div class="chk-block"><div class="chk" data-chk="'+c.id+'" style="margin-top:8px"><div class="n"><div class="nm">'+esc(c.name)+'</div><div class="i">'+info+' · 当前连续 '+sc+' 天'+notePrev+'</div></div>'
-        +'<button class="btn sm'+(doneToday?' punched':'')+'" data-do="'+c.id+'">'+(doneToday?'已打卡':'打卡')+'</button></div>'
-        +'<div class="chk-month'+(opened?'':' hidden')+'" id="cm-'+c.id+'"><div class="chk-month-inner">'+checkinCalendarHTML(c.id)
-        +'<div class="chk-month-actions"><button class="btn o" data-ckedit="'+c.id+'">修改</button><button class="btn o" data-ckdel="'+c.id+'" style="color:#c33">删除</button></div></div></div></div>';
+      h+='<div class="chk-block"><div class="chk" data-chk="'+c.id+'" style="margin-top:8px"><div class="n"><div class="nm">'+esc(c.name)+'</div><div class="i">'+info+' · 当前连续 '+sc+' 天'+notePrev+'</div></div><button class="btn sm'+(doneToday?' punched':'')+'" data-do="'+c.id+'">'+(doneToday?'已打卡':'打卡')+'</button></div><div class="chk-month'+(opened?'':' hidden')+'" id="cm-'+c.id+'"><div class="chk-month-inner">'+checkinCalendarHTML(c.id)+'<div class="chk-month-actions"><button class="btn o" data-ckedit="'+c.id+'">修改</button><button class="btn o" data-ckdel="'+c.id+'" style="color:#c33">删除</button></div></div></div></div>';
     });
   }
   h+='</div></div><div class="card"><h3 class="card-h"><span>计划</span><button class="fold-btn'+(state.planFoldOpen?'':' closed')+'" id="planFold">▾</button></h3>';
@@ -954,20 +815,14 @@ function renderCheckins(){
       var works=DB.works.filter(function(w){return String(w.planId)===String(p.id)});
       var total=works.reduce(function(s,w){return s+workTotal(w)},0);
       var targetMin=(p.totalHours||0)*60,pct=targetMin?Math.min(100,total/targetMin*100):0;
-      h+='<div data-plan="'+p.id+'" style="cursor:pointer;padding:10px 0;border-bottom:1px solid #f2f2f5"><div style="font-weight:600">'+esc(p.name)+'</div>'
-        +'<div class="muted" style="margin-top:4px">'+fmtDur(total)+' / '+p.totalHours+' 小时 · '+works.length+' 个作品</div>'
-        +'<div class="bar"><i style="width:'+pct+'%"></i></div></div>';
+      h+='<div data-plan="'+p.id+'" style="cursor:pointer;padding:10px 0;border-bottom:1px solid #f2f2f5"><div style="font-weight:600">'+esc(p.name)+'</div><div class="muted" style="margin-top:4px">'+fmtDur(total)+' / '+p.totalHours+' 小时 · '+works.length+' 个作品</div><div class="bar"><i style="width:'+pct+'%"></i></div></div>';
     });
   }
   h+='</div></div>';view.innerHTML=h;
-  view.querySelectorAll('[data-do]').forEach(function(b){var id=Number(b.dataset.do);bindTapAndDoubleTap(b,function(){doCheckin(id)},function(){cancelCheckin(id)});});
+  view.querySelectorAll('[data-do]').forEach(function(b){var id=Number(b.dataset.do);bindTapAndDoubleTap(b,function(){doCheckin(id)},function(){cancelCheckin(id)})});
   view.querySelectorAll('[data-chk]').forEach(function(el){el.onclick=function(){toggleCheckinMonth(Number(el.dataset.chk))}});
-  view.querySelectorAll('[data-ckprev]').forEach(function(b){
-    b.onclick=function(e){e.stopPropagation();var id=Number(b.dataset.ckprev);state.checkinCalMonth[id]=(state.checkinCalMonth[id]||0)+1;renderCheckins();};
-  });
-  view.querySelectorAll('[data-cknext]').forEach(function(b){
-    b.onclick=function(e){e.stopPropagation();var id=Number(b.dataset.cknext);var o=state.checkinCalMonth[id]||0;if(o>0){state.checkinCalMonth[id]=o-1;renderCheckins();}};
-  });
+  view.querySelectorAll('[data-ckprev]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var id=Number(b.dataset.ckprev);state.checkinCalMonth[id]=(state.checkinCalMonth[id]||0)+1;renderCheckins()}});
+  view.querySelectorAll('[data-cknext]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var id=Number(b.dataset.cknext);var o=state.checkinCalMonth[id]||0;if(o>0){state.checkinCalMonth[id]=o-1;renderCheckins()}}});
   view.querySelectorAll('[data-ckdate]').forEach(function(el){
     var ckId=Number(el.dataset.ckid),date=el.dataset.ckdate;
     bindTapAndDoubleTap(el,function(){
@@ -982,23 +837,16 @@ function renderCheckins(){
     var logs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)===id});
     var ps=logs.map(function(l){return idbDel('checkinLogs',l.id)});
     ps.push(idbDel('checkins',id));
-    Promise.all(ps).then(function(){
-      DB.checkins=DB.checkins.filter(function(x){return Number(x.id)!==id});
-      DB.checkinLogs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)!==id});
-      toast('已删除');renderCheckins();
-    });
+    Promise.all(ps).then(function(){DB.checkins=DB.checkins.filter(function(x){return Number(x.id)!==id});DB.checkinLogs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)!==id});toast('已删除');renderCheckins()});
   }});
   view.querySelectorAll('[data-plan]').forEach(function(el){el.onclick=function(){openPlanDetail(Number(el.dataset.plan))}});
   var ckFold=document.getElementById('ckFold');
-  if(ckFold)ckFold.onclick=function(e){e.stopPropagation();state.ckFoldOpen=!state.ckFoldOpen;
-    var b=document.getElementById('ckBody');if(b)b.classList.toggle('hidden',!state.ckFoldOpen);ckFold.classList.toggle('closed',!state.ckFoldOpen);};
+  if(ckFold)ckFold.onclick=function(e){e.stopPropagation();state.ckFoldOpen=!state.ckFoldOpen;var b=document.getElementById('ckBody');if(b)b.classList.toggle('hidden',!state.ckFoldOpen);ckFold.classList.toggle('closed',!state.ckFoldOpen)};
   var planFold=document.getElementById('planFold');
-  if(planFold)planFold.onclick=function(e){e.stopPropagation();state.planFoldOpen=!state.planFoldOpen;
-    var b=document.getElementById('planBody');if(b)b.classList.toggle('hidden',!state.planFoldOpen);planFold.classList.toggle('closed',!state.planFoldOpen);};
+  if(planFold)planFold.onclick=function(e){e.stopPropagation();state.planFoldOpen=!state.planFoldOpen;var b=document.getElementById('planBody');if(b)b.classList.toggle('hidden',!state.planFoldOpen);planFold.classList.toggle('closed',!state.planFoldOpen)};
 }
 
-/* ===== 计划详情 ===== */
-function openPlanDetail(id){state.planId=id;state.nodeIdx=0;state.tab='planDetail';renderPlanDetail();}
+function openPlanDetail(id){state.planId=id;state.nodeIdx=0;state.tab='planDetail';renderPlanDetail()}
 function renderPlanDetail(){
   var p=DB.plans.find(function(x){return Number(x.id)===Number(state.planId)});
   if(!p){go('checkins');return}
@@ -1006,19 +854,13 @@ function renderPlanDetail(){
   var allWorks=DB.works,assigned=getAutoAssignedWorks(p,allWorks);
   var total=allWorks.filter(function(w){return String(w.planId)===String(p.id)}).reduce(function(s,w){return s+workTotal(w)},0);
   var targetMin=(p.totalHours||0)*60,pct=targetMin?Math.min(100,total/targetMin*100):0;
-  var h='<div class="card"><div class="muted">总进度</div><div class="big" style="margin-top:4px">'+fmtDur(total)+' / '+p.totalHours+' 小时</div>'
-    +'<div class="bar" style="height:10px;margin-top:8px"><i style="width:'+pct+'%"></i></div>'
-    +'<div class="muted" style="margin-top:6px">'+pct.toFixed(1)+'% · 作品按时间轴顺延，可跨多个节点</div></div>';
+  var h='<div class="card"><div class="muted">总进度</div><div class="big" style="margin-top:4px">'+fmtDur(total)+' / '+p.totalHours+' 小时</div><div class="bar" style="height:10px;margin-top:8px"><i style="width:'+pct+'%"></i></div><div class="muted" style="margin-top:6px">'+pct.toFixed(1)+'% · 作品按时间轴顺延，可跨多个节点</div></div>';
   var nodes=p.nodes||[];
   if(nodes.length){
-    if(state.nodeIdx<0)state.nodeIdx=0;
-    if(state.nodeIdx>nodes.length-1)state.nodeIdx=nodes.length-1;
+    if(state.nodeIdx<0)state.nodeIdx=0;if(state.nodeIdx>nodes.length-1)state.nodeIdx=nodes.length-1;
     var ca2=assigned[state.nodeIdx],n=ca2.node,nWorks=ca2.works,nTotal=ca2.totalMin;
-    var nTarget=(n.hours||0)*60,nPct=nTarget?Math.min(100,nTotal/nTarget*100):0;
-    var imgs=ca2.images||[];
-    h+='<div class="node-nav"><button class="nb" id="nodePrev"'+(state.nodeIdx===0?' disabled':'')+'>‹</button>'
-      +'<span class="nlabel">'+esc(n.name)+'　'+(state.nodeIdx+1)+' / '+nodes.length+'</span>'
-      +'<button class="nb" id="nodeNext"'+(state.nodeIdx===nodes.length-1?' disabled':'')+'>›</button></div>';
+    var nTarget=(n.hours||0)*60,nPct=nTarget?Math.min(100,nTotal/nTarget*100):0,imgs=ca2.images||[];
+    h+='<div class="node-nav"><button class="nb" id="nodePrev"'+(state.nodeIdx===0?' disabled':'')+'>‹</button><span class="nlabel">'+esc(n.name)+'　'+(state.nodeIdx+1)+' / '+nodes.length+'</span><button class="nb" id="nodeNext"'+(state.nodeIdx===nodes.length-1?' disabled':'')+'>›</button></div>';
     h+='<div class="node-card"><div class="node-head"><div><div class="node-name">'+esc(n.name)+'</div>';
     if(nTarget)h+='<div class="muted" style="margin-top:4px">'+fmtDur(nTotal)+' / '+n.hours.toFixed(1)+' 小时 · 涉及 '+nWorks.length+' 个作品</div><div class="bar"><i style="width:'+nPct+'%"></i></div>';
     else h+='<div class="muted" style="margin-top:4px">累计 '+fmtDur(nTotal)+' · 涉及 '+nWorks.length+' 个作品</div>';
@@ -1037,9 +879,7 @@ function renderPlanDetail(){
   view.innerHTML=h;
   var big=document.getElementById('nodeBigImg');
   if(big)view.querySelectorAll('[data-thumb]').forEach(function(el){
-    el.onclick=function(e){e.stopPropagation();big.src=el.dataset.thumb;
-      view.querySelectorAll('[data-thumb]').forEach(function(x){x.style.outline='none';x.style.outlineOffset='';});
-      el.style.outline='2px solid #1a1a1a';el.style.outlineOffset='-2px';};
+    el.onclick=function(e){e.stopPropagation();big.src=el.dataset.thumb;view.querySelectorAll('[data-thumb]').forEach(function(x){x.style.outline='none';x.style.outlineOffset=''});el.style.outline='2px solid #1a1a1a';el.style.outlineOffset='-2px'};
   });
   var pv=document.getElementById('nodePrev'),nx=document.getElementById('nodeNext');
   if(pv)pv.onclick=function(){if(state.nodeIdx>0){state.nodeIdx--;renderPlanDetail()}};
@@ -1049,13 +889,10 @@ function renderPlanDetail(){
   document.getElementById('delPlan').onclick=function(){
     if(!confirm('删除这个计划？相关作品不会被删除。'))return;
     var updates=DB.works.filter(function(w){return String(w.planId)===String(state.planId)});
-    updates.forEach(function(w){w.planId=null;});
+    updates.forEach(function(w){w.planId=null});
     var ps=updates.map(function(w){return idbPut('works',w)});
     ps.push(idbDel('plans',state.planId));
-    Promise.all(ps).then(function(){
-      DB.plans=DB.plans.filter(function(x){return Number(x.id)!==Number(state.planId)});
-      toast('已删除');state.planId=null;go('checkins');
-    });
+    Promise.all(ps).then(function(){DB.plans=DB.plans.filter(function(x){return Number(x.id)!==Number(state.planId)});toast('已删除');state.planId=null;go('checkins')});
   };
 }
 function pickCover(p,nodeId){
@@ -1067,109 +904,90 @@ function pickCover(p,nodeId){
   var h='<div class="pick-grid">';
   imgs.forEach(function(img){h+='<div class="pcell'+(n.coverImg===img?' sel':'')+'" data-pick="'+img+'"><img src="'+img+'"></div>'});
   openModal('选择封面',h+'</div>','<button class="btn o" data-close>取消</button>');
-  document.querySelectorAll('[data-pick]').forEach(function(el){
-    el.onclick=function(){n.coverImg=el.dataset.pick;idbPut('plans',p).then(function(){closeModal();toast('已设置封面');renderPlanDetail();});};
-  });
+  document.querySelectorAll('[data-pick]').forEach(function(el){el.onclick=function(){n.coverImg=el.dataset.pick;idbPut('plans',p).then(function(){closeModal();toast('已设置封面');renderPlanDetail()})}});
 }
 
-/* ===== 统计 ===== */
 function renderStats(){
   titleEl.textContent='统计';backEl.style.display='none';actionEl.style.display='none';
   if(!DB.works.length&&!DB.checkins.length){view.innerHTML='<div class="empty">还没有数据</div>';return}
   var allStages=[];
-  DB.works.forEach(function(w){w.stages.forEach(function(s,i){allStages.push({date:s.date,duration:stageDur(w,i),category:w.category});});});
+  DB.works.forEach(function(w){w.stages.forEach(function(s,i){allStages.push({date:s.date,duration:stageDur(w,i),category:w.category})})});
   var td=today();
   var todayMin=allStages.filter(function(s){return s.date===td}).reduce(function(a,s){return a+s.duration},0);
   var allMin=allStages.reduce(function(a,s){return a+s.duration},0);
   var hasBg=!!todayBgImg;
   var h='<div class="card today-card'+(hasBg?' has-bg':'')+'" id="todayCard">';
   if(hasBg)h+='<div class="today-bg" style="background-image:url(\''+todayBgImg+'\')"></div>';
-  h+='<div class="today-content"><div class="today-label">今日画画</div><div class="today-value">'+fmtDur(todayMin)+'</div>'
-    +'<div class="today-total">总绘画时长 '+fmtDur(allMin)+'</div></div></div>';
+  h+='<div class="today-content"><div class="today-label">今日画画</div><div class="today-value">'+fmtDur(todayMin)+'</div><div class="today-total">总绘画时长 '+fmtDur(allMin)+'</div></div></div>';
   h+=renderImageCalendar();
   var h2='<div class="seg">';
-  [['week','周'],['month','月'],['year','年']].forEach(function(r){h2+='<button data-r="'+r[0]+'"'+(state.statRange===r[0]?' class="on"':'')+'>'+r[1]+'</button>';});
+  [['week','周'],['month','月'],['year','年']].forEach(function(r){h2+='<button data-r="'+r[0]+'"'+(state.statRange===r[0]?' class="on"':'')+'>'+r[1]+'</button>'});
   h2+='</div>';
   var now=new Date(),y=now.getFullYear(),m=now.getMonth(),off=state.statOffset||0;
   var pts=[],total=0,chartTitle='',periodLabel='',avgLabel='',avgVal=0,avgNote='',isCurrent=off===0;
   if(state.statRange==='week'){
-    chartTitle='每日时长';var ws=new Date(now);var day=(ws.getDay()+6)%7;
+    chartTitle='每日时长';var ws=new Date(now),day=(ws.getDay()+6)%7;
     ws.setDate(ws.getDate()-day-off*7);var we=new Date(ws);we.setDate(we.getDate()+6);
     for(var i=0;i<7;i++){var d=new Date(ws);d.setDate(ws.getDate()+i);var ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-      var v=allStages.filter(function(s){return s.date===ds}).reduce(function(a,s){return a+s.duration},0);pts.push({l:['一','二','三','四','五','六','日'][i],v:v});total+=v;}
+      var v=allStages.filter(function(s){return s.date===ds}).reduce(function(a,s){return a+s.duration},0);pts.push({l:['一','二','三','四','五','六','日'][i],v:v});total+=v}
     periodLabel=ws.getFullYear()+'年'+(ws.getMonth()+1)+'月'+ws.getDate()+'日 - '+(ws.getMonth()===we.getMonth()?we.getDate()+'日':(we.getMonth()+1)+'月'+we.getDate()+'日');
     var dp=isCurrent?(day+1):7;avgLabel='平均每天';avgVal=total/dp;if(isCurrent&&dp<7)avgNote='已过 '+dp+' 天';
   }else if(state.statRange==='month'){
-    chartTitle='每日时长';var base=new Date(y,m-off,1);var yy=base.getFullYear(),mm2=base.getMonth();
+    chartTitle='每日时长';var base=new Date(y,m-off,1),yy=base.getFullYear(),mm2=base.getMonth();
     var days=new Date(yy,mm2+1,0).getDate();
     for(var d2=1;d2<=days;d2++){var ds2=yy+'-'+pad(mm2+1)+'-'+pad(d2);
-      var v2=allStages.filter(function(s){return s.date===ds2}).reduce(function(a,s){return a+s.duration},0);pts.push({l:String(d2),v:v2});total+=v2;}
+      var v2=allStages.filter(function(s){return s.date===ds2}).reduce(function(a,s){return a+s.duration},0);pts.push({l:String(d2),v:v2});total+=v2}
     periodLabel=yy+'年'+(mm2+1)+'月';var dp2=isCurrent?now.getDate():days;avgLabel='平均每周';avgVal=total*7/dp2;if(isCurrent&&dp2<days)avgNote='已过 '+dp2+' 天';
   }else{
     chartTitle='每月时长';var yy2=y-off;
     for(var mm3=1;mm3<=12;mm3++){var pre=yy2+'-'+pad(mm3);
-      var v3=allStages.filter(function(s){return (s.date||'').slice(0,7)===pre}).reduce(function(a,s){return a+s.duration},0);pts.push({l:mm3+'月',v:v3});total+=v3;}
+      var v3=allStages.filter(function(s){return (s.date||'').slice(0,7)===pre}).reduce(function(a,s){return a+s.duration},0);pts.push({l:mm3+'月',v:v3});total+=v3}
     periodLabel=yy2+'年';var mp=isCurrent?(now.getMonth()+1):12;avgLabel='平均每月';avgVal=total/mp;if(isCurrent&&mp<12)avgNote='已过 '+mp+' 个月';
   }
   h2+='<div class="card"><h3>'+chartTitle+'</h3>';
-  h2+='<div class="period-nav"><button class="pb" id="periodPrev" type="button">‹</button><span class="plabel">'+esc(periodLabel)+'</span>'
-    +'<button class="pb" id="periodNext" type="button"'+(isCurrent?' disabled':'')+'>›</button></div>';
-  h2+='<div class="muted" style="margin-bottom:6px;line-height:1.7">合计 '+fmtDur(total)+'<br>'+avgLabel+' '+fmtDur(avgVal)+(avgNote?'（'+avgNote+'）':'')+'</div>';
-  h2+=lineChart(pts)+'</div>';
+  h2+='<div class="period-nav"><button class="pb" id="periodPrev" type="button">‹</button><span class="plabel">'+esc(periodLabel)+'</span><button class="pb" id="periodNext" type="button"'+(isCurrent?' disabled':'')+'>›</button></div>';
+  h2+='<div class="muted" style="margin-bottom:6px;line-height:1.7">合计 '+fmtDur(total)+'<br>'+avgLabel+' '+fmtDur(avgVal)+(avgNote?'（'+avgNote+'）':'')+'</div>'+lineChart(pts)+'</div>';
   var cat={};allStages.forEach(function(s){var k=s.category||'未分类';cat[k]=(cat[k]||0)+s.duration});
   var ca=Object.keys(cat).sort(function(a,b){return cat[b]-cat[a]});
   var cm=Math.max(1,Math.max.apply(null,ca.map(function(k){return cat[k]})));
   h2+='<div class="card"><h3>分类汇总</h3>';
-  ca.forEach(function(k){h2+='<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:13px"><span>'+esc(k)+'</span><span class="muted">'+fmtDur(cat[k])+'</span></div><div class="bar"><i style="width:'+(cat[k]/cm*100)+'%"></i></div></div>';});
+  ca.forEach(function(k){h2+='<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:13px"><span>'+esc(k)+'</span><span class="muted">'+fmtDur(cat[k])+'</span></div><div class="bar"><i style="width:'+(cat[k]/cm*100)+'%"></i></div></div>'});
   h2+='</div>';
-  h2+='<div class="card"><h3>检索作品</h3><div class="search-bar">'
-    +'<input id="searchInput" type="search" placeholder="搜索备注 / 分类 / 阶段备注 / 日期" value="'+esc(state.q||'')+'">'
-    +'<button class="btn sm o" id="searchClear" type="button" style="flex-shrink:0">清空</button></div>'
-    +'<div class="chip-row" id="starChips"><button class="chip'+(state.stars.length===0?' on':'')+'" data-star="0" type="button">全部</button>';
+  h2+='<div class="card"><h3>检索作品</h3><div class="search-bar"><input id="searchInput" type="search" placeholder="搜索备注 / 分类 / 阶段备注 / 日期" value="'+esc(state.q||'')+'"><button class="btn sm o" id="searchClear" type="button" style="flex-shrink:0">清空</button></div><div class="chip-row" id="starChips"><button class="chip'+(state.stars.length===0?' on':'')+'" data-star="0" type="button">全部</button>';
   for(var s=5;s>=1;s--)h2+='<button class="chip'+(state.stars.indexOf(s)>=0?' on':'')+'" data-star="'+s+'" type="button">'+s+'★</button>';
   h2+='</div><div id="searchResults"></div></div>';
   view.innerHTML=h+h2;
   view.querySelectorAll('[data-r]').forEach(function(b){b.onclick=function(){state.statRange=b.dataset.r;state.statOffset=0;renderStats()}});
   var pp=document.getElementById('periodPrev');
-  if(pp)pp.onclick=function(){state.statOffset=(state.statOffset||0)+1;renderStats();};
+  if(pp)pp.onclick=function(){state.statOffset=(state.statOffset||0)+1;renderStats()};
   var pn=document.getElementById('periodNext');
-  if(pn)pn.onclick=function(){var o=state.statOffset||0;if(o>0){state.statOffset=o-1;renderStats();}};
+  if(pn)pn.onclick=function(){var o=state.statOffset||0;if(o>0){state.statOffset=o-1;renderStats()}};
   bindCalendarEvents();bindSearchEvents();renderSearchResults();
   var tc=document.getElementById('todayCard');
-  if(tc&&hasBg){
-    tc.onclick=function(){
-      tc.classList.add('show-bg');
-      if(todayShowTimer)clearTimeout(todayShowTimer);
-      todayShowTimer=setTimeout(function(){tc.classList.remove('show-bg');todayShowTimer=null;},5000);
-    };
-  }
+  if(tc&&hasBg)tc.onclick=function(){tc.classList.add('show-bg');if(todayShowTimer)clearTimeout(todayShowTimer);todayShowTimer=setTimeout(function(){tc.classList.remove('show-bg');todayShowTimer=null},5000)};
 }
 function bindSearchEvents(){
   var inp=document.getElementById('searchInput');
   if(inp){
     var t=null;
-    inp.oninput=function(){state.q=inp.value;if(t)clearTimeout(t);t=setTimeout(function(){t=null;renderSearchResults();},180);};
+    inp.oninput=function(){state.q=inp.value;if(t)clearTimeout(t);t=setTimeout(function(){t=null;renderSearchResults()},180)};
     inp.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();try{inp.blur()}catch(_){}}};
   }
   var cb=document.getElementById('searchClear');
-  if(cb)cb.onclick=function(){state.q='';state.stars=[];var i2=document.getElementById('searchInput');if(i2)i2.value='';syncStarChips();renderSearchResults();};
+  if(cb)cb.onclick=function(){state.q='';state.stars=[];var i2=document.getElementById('searchInput');if(i2)i2.value='';syncStarChips();renderSearchResults()};
   var chips=document.getElementById('starChips');
   if(chips)chips.querySelectorAll('.chip').forEach(function(c){
     c.onclick=function(){
       var v=Number(c.dataset.star);
       if(v===0)state.stars=[];
-      else{var idx=state.stars.indexOf(v);if(idx>=0)state.stars.splice(idx,1);else state.stars.push(v);state.stars.sort();}
+      else{var idx=state.stars.indexOf(v);if(idx>=0)state.stars.splice(idx,1);else state.stars.push(v);state.stars.sort()}
       syncStarChips();renderSearchResults();
     };
   });
 }
 function syncStarChips(){
   var chips=document.getElementById('starChips');if(!chips)return;
-  chips.querySelectorAll('.chip').forEach(function(x){
-    var xv=Number(x.dataset.star);
-    if(xv===0)x.classList.toggle('on',state.stars.length===0);
-    else x.classList.toggle('on',state.stars.indexOf(xv)>=0);
-  });
+  chips.querySelectorAll('.chip').forEach(function(x){var xv=Number(x.dataset.star);if(xv===0)x.classList.toggle('on',state.stars.length===0);else x.classList.toggle('on',state.stars.indexOf(xv)>=0)});
 }
 function filterWorks(){
   var q=(state.q||'').trim().toLowerCase(),stars=state.stars||[];
@@ -1178,14 +996,14 @@ function filterWorks(){
     if(stars.length&&stars.indexOf(r)<0)return false;
     if(!q)return true;
     var hay=(w.note||'')+' '+(w.category||'');
-    (w.stages||[]).forEach(function(s){hay+=' '+(s.note||'')+' '+(s.date||'');});
+    (w.stages||[]).forEach(function(s){hay+=' '+(s.note||'')+' '+(s.date||'')});
     return hay.toLowerCase().indexOf(q)>=0;
   });
 }
 function renderSearchResults(){
   var box=document.getElementById('searchResults');if(!box)return;
   var q=(state.q||'').trim(),stars=state.stars||[];
-  var list=filterWorks();list.sort(function(a,b){return (workCreatedAt(b)||0)-(workCreatedAt(a)||0);});
+  var list=filterWorks();list.sort(function(a,b){return (workCreatedAt(b)||0)-(workCreatedAt(a)||0)});
   var cond=[];
   if(q)cond.push('“'+q+'”');if(stars.length)cond.push(stars.join('、')+'★');
   var head=cond.length?('匹配 '+cond.join(' + ')+' · 共 '+list.length+' 个'):('全部作品 · 共 '+list.length+' 个');
@@ -1193,28 +1011,20 @@ function renderSearchResults(){
   if(!list.length){box.innerHTML=h+'<div class="empty" style="padding:24px 10px">没有匹配的作品</div>';return}
   h+='<div class="timeline">';
   list.forEach(function(w){
-    var imgs=getAllWorkImages(w),ca=workCreatedAt(w);var dateStr=ca?fmtTs(ca):'未知时间';
-    h+='<div class="tl-item"><div class="tl-date" data-tlwork="'+w.id+'">'+esc(dateStr)+(w.category?' · '+esc(w.category):'')+'</div>'
-      +'<div class="tl-card"><div class="tl-top">'+starsHTML(w.rating||0,true,true)+'<span class="muted">'+fmtDur(workTotal(w))+'</span></div>';
-    if(imgs.length){h+='<div class="tl-thumbs">';imgs.forEach(function(im,i){h+='<img src="'+im+'" data-tlimg="'+w.id+'_'+i+'">'});h+='</div>';}
+    var imgs=getAllWorkImages(w),ca=workCreatedAt(w),dateStr=ca?fmtTs(ca):'未知时间';
+    h+='<div class="tl-item"><div class="tl-date" data-tlwork="'+w.id+'">'+esc(dateStr)+(w.category?' · '+esc(w.category):'')+'</div><div class="tl-card"><div class="tl-top">'+starsHTML(w.rating||0,true,true)+'<span class="muted">'+fmtDur(workTotal(w))+'</span></div>';
+    if(imgs.length){h+='<div class="tl-thumbs">';imgs.forEach(function(im,i){h+='<img src="'+im+'" data-tlimg="'+w.id+'_'+i+'">'});h+='</div>'}
     if(w.note)h+='<div class="tl-note">'+esc(w.note)+'</div>';
     h+='</div></div>';
   });
   box.innerHTML=h+'</div>';
-  box.querySelectorAll('[data-tlimg]').forEach(function(el){
-    el.onclick=function(e){
-      e.stopPropagation();
-      var parts=el.dataset.tlimg.split('_'),wid=Number(parts[0]),idx=Number(parts[1]);
-      var w=DB.works.find(function(x){return x.id===wid});if(!w)return;
-      openImageViewer(getAllWorkImages(w),idx,false);
-    };
-  });
-  box.querySelectorAll('[data-tlwork]').forEach(function(el){el.onclick=function(e){e.stopPropagation();openWorkFromSearch(Number(el.dataset.tlwork));};});
+  box.querySelectorAll('[data-tlimg]').forEach(function(el){el.onclick=function(e){e.stopPropagation();var parts=el.dataset.tlimg.split('_'),wid=Number(parts[0]),idx=Number(parts[1]);var w=DB.works.find(function(x){return x.id===wid});if(!w)return;openImageViewer(getAllWorkImages(w),idx,false)}});
+  box.querySelectorAll('[data-tlwork]').forEach(function(el){el.onclick=function(e){e.stopPropagation();openWorkFromSearch(Number(el.dataset.tlwork))}});
 }
 function openWorkFromSearch(id){
   var w=DB.works.find(function(x){return x.id===id});if(!w)return;
-  state.tab='collections';state.category=w.category;state.workId=id;state.workImgIdx=0;state.planId=null;
-  state._editWorkId=null;state._editStages=null;renderTabs();renderWorkView();
+  state.tab='collections';state.category=w.category;state.workId=id;state.workImgIdx=0;state.planId=null;state._editWorkId=null;state._editStages=null;
+  renderTabs();renderWorkView();
 }
 function renderImageCalendar(){
   var d=state.calMonth,y=d.getFullYear(),m=d.getMonth(),dayData={};
@@ -1222,7 +1032,7 @@ function renderImageCalendar(){
     if(!s.date)return;if(s.date.slice(0,7)!==y+'-'+pad(m+1))return;
     if(!dayData[s.date])dayData[s.date]={works:0,dur:0};
     dayData[s.date].dur+=stageDur(w,i);if(s.images&&s.images.length)dayData[s.date].works+=1;
-  });});
+  })});
   var first=new Date(y,m,1),sp=(first.getDay()+6)%7,days=new Date(y,m+1,0).getDate(),cells='';
   ['一','二','三','四','五','六','日'].forEach(function(w){cells+='<div class="w">'+w+'</div>'});
   for(var i=0;i<sp;i++)cells+='<div></div>';
@@ -1230,30 +1040,22 @@ function renderImageCalendar(){
   for(var day=1;day<=days;day++){
     var ds=y+'-'+pad(m+1)+'-'+pad(day),info=dayData[ds];
     var dur=info&&info.dur>0?info.dur:0,wk=info&&info.works>0?info.works:0,has=dur>0||wk>0;
-    cells+='<div class="d'+(has?' has':'')+(ds===td?' today':'')+'" data-calday="'+ds+'">'
-      +'<span class="n">'+(wk>0?wk:'')+'</span><span class="dd">'+day+'</span>'
-      +'<span class="dur">'+(dur>0?fmtDurCal(dur):'')+'</span></div>';
+    cells+='<div class="d'+(has?' has':'')+(ds===td?' today':'')+'" data-calday="'+ds+'"><span class="n">'+(wk>0?wk:'')+'</span><span class="dd">'+day+'</span><span class="dur">'+(dur>0?fmtDurCal(dur):'')+'</span></div>';
   }
   return '<div class="card cal-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><button class="btn sm o" data-cal="prev">‹</button><strong>'+y+'年'+(m+1)+'月</strong><button class="btn sm o" data-cal="next">›</button></div><div class="cal">'+cells+'</div></div>';
 }
 function bindCalendarEvents(){
-  view.querySelectorAll('[data-cal]').forEach(function(b){
-    b.onclick=function(){var d=new Date(state.calMonth);d.setMonth(d.getMonth()+(b.dataset.cal==='prev'?-1:1));state.calMonth=d;renderStats();};
-  });
+  view.querySelectorAll('[data-cal]').forEach(function(b){b.onclick=function(){var d=new Date(state.calMonth);d.setMonth(d.getMonth()+(b.dataset.cal==='prev'?-1:1));state.calMonth=d;renderStats()}});
   view.querySelectorAll('[data-calday]').forEach(function(el){el.onclick=function(){showDayImages(el.dataset.calday)}});
 }
 function showDayImages(ds){
   var imgs=[],totalMin=0;
-  DB.works.forEach(function(w){w.stages.forEach(function(s,i){
-    if(s.date===ds){(s.images||[]).forEach(function(img){imgs.push(img)});totalMin+=stageDur(w,i);}
-  });});
+  DB.works.forEach(function(w){w.stages.forEach(function(s,i){if(s.date===ds){(s.images||[]).forEach(function(img){imgs.push(img)});totalMin+=stageDur(w,i)}})});
   var h='<div class="muted" style="margin-bottom:10px">'+ds+' · 总绘制 '+fmtDur(totalMin)+' · 点图片可看大图</div>';
   if(!imgs.length)h+='<div class="empty">这一天没有图片</div>';
   else{h+='<div class="grid34">';imgs.forEach(function(img,i){h+='<div class="cell" data-dayimg="'+i+'"><img src="'+img+'"></div>'});h+='</div>'}
   openModal(ds+' 的图片（'+imgs.length+'）',h,'<button class="btn o" data-close>关闭</button>');
-  document.querySelectorAll('[data-dayimg]').forEach(function(el){
-    el.onclick=function(e){e.stopPropagation();openImageViewer(imgs,Number(el.dataset.dayimg),false);};
-  });
+  document.querySelectorAll('[data-dayimg]').forEach(function(el){el.onclick=function(e){e.stopPropagation();openImageViewer(imgs,Number(el.dataset.dayimg),false)}});
 }
 function lineChart(pts){
   var W=340,H=130,PL=32,PR=12,PT=14,PB=24,n=pts.length;
@@ -1262,14 +1064,12 @@ function lineChart(pts){
   var ps=pts.map(function(p,i){return{x:PL+i*sx,y:H-PB-(p.v/nm)*(H-PT-PB),v:p.v,l:p.l}});
   var line=ps.map(function(p,i){return(i?'L':'M')+p.x.toFixed(1)+' '+p.y.toFixed(1)}).join(' ');
   var area=line+' L '+ps[n-1].x.toFixed(1)+' '+(H-PB)+' L '+ps[0].x.toFixed(1)+' '+(H-PB)+' Z',grid='';
-  for(var g=0;g<=2;g++){var y=PT+(H-PT-PB)*g/2,valMin=nm*(1-g/2),val=(valMin/60).toFixed(valMin%60===0?0:1)+'h';
-    grid+='<line x1="'+PL+'" y1="'+y+'" x2="'+(W-PR)+'" y2="'+y+'" stroke="#d0d0d8"/><text x="'+(PL-6)+'" y="'+(y+3)+'" font-size="9" fill="#a0a0a8" text-anchor="end">'+val+'</text>';}
+  for(var g=0;g<=2;g++){var y=PT+(H-PT-PB)*g/2,valMin=nm*(1-g/2),val=(valMin/60).toFixed(valMin%60===0?0:1)+'h';grid+='<line x1="'+PL+'" y1="'+y+'" x2="'+(W-PR)+'" y2="'+y+'" stroke="#d0d0d8"/><text x="'+(PL-6)+'" y="'+(y+3)+'" font-size="9" fill="#a0a0a8" text-anchor="end">'+val+'</text>'}
   var dots=ps.map(function(p){return'<circle cx="'+p.x+'" cy="'+p.y+'" r="3" fill="#fff" stroke="#1a1a1a" stroke-width="2"/>'}).join('');
   var lbs=ps.map(function(p,i){if(n>12&&i%2!==0)return'';return'<text x="'+p.x+'" y="'+(H-9)+'" font-size="9" fill="#999" text-anchor="middle">'+p.l+'</text>'}).join('');
   return'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block">'+grid+'<path d="'+area+'" fill="#1a1a1a" opacity="0.08"/><path d="'+line+'" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linejoin="round"/>'+dots+lbs+'</svg>';
 }
 
-/* ===== 设置 ===== */
 function renderSettings(){
   titleEl.textContent='设置';backEl.style.display='none';actionEl.style.display='none';
   var h='<div class="card"><h3>分类管理</h3>';
@@ -1279,45 +1079,34 @@ function renderSettings(){
     h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f2f2f5"><div><div style="font-weight:500">'+esc(c.name)+'</div><div class="muted">'+n+' 个作品</div></div><button class="btn sm o" data-delcat="'+c.id+'" style="color:#c33">删除</button></div>';
   });
   h+='</div><button class="btn" id="addCat">＋ 新建分类</button>';
-  h+='<div class="card"><h3>今日画画卡片背景</h3><label class="fld">上传背景图（自动以 40% 透明度作为底图）</label><input type="file" id="bgFile" accept="image/*">';
-  if(todayBgImg){
-    h+='<div style="margin-top:6px;border-radius:10px;overflow:hidden;background:#f0f0f3"><img src="'+todayBgImg+'" style="width:100%;display:block;opacity:.4"></div>'
-      +'<button class="btn o" id="bgClear" style="margin-top:10px;color:#c33">移除背景图</button>';
-  }
+  h+='<div class="card"><h3>今日画画卡片背景</h3><label class="fld">上传背景图（会自动压缩）</label><input type="file" id="bgFile" accept="image/*">';
+  if(todayBgImg)h+='<div style="margin-top:6px;border-radius:10px;overflow:hidden;background:#f0f0f3"><img src="'+todayBgImg+'" style="width:100%;display:block;opacity:.4"></div><button class="btn o" id="bgClear" style="margin-top:10px;color:#c33">移除背景图</button>';
   h+='<div class="muted" style="margin-top:8px">在「统计」页的今日画画卡片上点一下，可全屏显示背景图 5 秒，然后自动恢复。</div></div>';
   h+='<button class="btn o" id="expBtn">一键导出所有数据</button><button class="btn o" id="impBtn">一键导入数据</button>';
   var totalImgs=0;DB.works.forEach(function(w){totalImgs+=workImgCount(w)});
-  h+='<div class="card"><h3>存储</h3><div class="muted">作品 '+DB.works.length+' 个 · 图片 '+totalImgs+' 张<br>使用 '+(idb?'IndexedDB':'内存（本次会话有效，退出后丢失）')+'</div></div>';
-  h+='<div class="card"><h3>说明</h3><div class="muted">图片按原图保存。导出文件为 JSON 格式，包含所有分类、作品、图片、打卡、打卡备注、计划、卡片背景。换手机时用「导入数据」恢复即可。</div></div>';
+  h+='<div class="card"><h3>存储</h3><div class="muted">作品 '+DB.works.length+' 个 · 图片 '+totalImgs+' 张<br>使用 '+(idb?'IndexedDB':'内存（本次会话有效，退出后丢失）')+'<br>图片压缩：长边≤'+IMG_MAX_SIDE+'px，JPEG质量 '+Math.round(IMG_QUALITY*100)+'%</div></div>';
+  h+='<div class="card"><h3>说明</h3><div class="muted">图片上传时自动压缩保存（长边最多 '+IMG_MAX_SIDE+'px，JPEG 质量 '+Math.round(IMG_QUALITY*100)+'%），GIF 动图保留原样。导出文件为 JSON 格式，包含所有分类、作品、图片、打卡、打卡备注、计划、卡片背景。换手机时用「导入数据」恢复即可。</div></div>';
   view.innerHTML=h;
   document.getElementById('addCat').onclick=addCategoryModal;
   document.getElementById('expBtn').onclick=exportAll;
   document.getElementById('impBtn').onclick=importAll;
   var bgFile=document.getElementById('bgFile');
-  if(bgFile)bgFile.onchange=function(e){
-    var f=e.target.files[0];if(!f)return;
-    processImage(f).then(function(d){todayBgImg=d;idbPut('settings',{id:'todayBg',img:d}).then(function(){toast('背景已设置');renderSettings();});});
-  };
+  if(bgFile)bgFile.onchange=function(e){var f=e.target.files[0];if(!f)return;toast('正在压缩…');processImage(f).then(function(d){todayBgImg=d;idbPut('settings',{id:'todayBg',img:d}).then(function(){toast('背景已设置');renderSettings()})})};
   var bgClear=document.getElementById('bgClear');
-  if(bgClear)bgClear.onclick=function(){
-    if(!confirm('移除今日画画卡片的背景图？'))return;
-    todayBgImg=null;idbDel('settings','todayBg').then(function(){toast('已移除');renderSettings();});
-  };
+  if(bgClear)bgClear.onclick=function(){if(!confirm('移除今日画画卡片的背景图？'))return;todayBgImg=null;idbDel('settings','todayBg').then(function(){toast('已移除');renderSettings()})};
   view.querySelectorAll('[data-delcat]').forEach(function(b){b.onclick=function(){
     if(!confirm('删除这个分类？该分类下的作品不会被删除，只影响分类本身。'))return;
     var id=Number(b.dataset.delcat);
-    idbDel('categories',id).then(function(){DB.categories=DB.categories.filter(function(c){return Number(c.id)!==id});toast('已删除');renderSettings();});
+    idbDel('categories',id).then(function(){DB.categories=DB.categories.filter(function(c){return Number(c.id)!==id});toast('已删除');renderSettings()});
   }});
 }
 
-/* ===== 导出/导入 ===== */
 function exportAll(){
   var pack={version:1,exportedAt:new Date().toISOString(),categories:DB.categories,works:DB.works,checkins:DB.checkins,checkinLogs:DB.checkinLogs,plans:DB.plans,todayBgImg:todayBgImg};
   var json=JSON.stringify(pack),fileName='draw-backup-'+today()+'.json',file=null;
-  try{file=new File([json],fileName,{type:'application/json'});}catch(e){}
+  try{file=new File([json],fileName,{type:'application/json'})}catch(e){}
   if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
-    navigator.share({files:[file],title:'画集备份',text:'导出数据'}).then(function(){toast('请选择“存储到文件/保存到文件”');})
-      .catch(function(err){if(err&&err.name==='AbortError')return;fallbackDownload(json,fileName);});
+    navigator.share({files:[file],title:'画集备份',text:'导出数据'}).then(function(){toast('请选择“存储到文件/保存到文件”')}).catch(function(err){if(err&&err.name==='AbortError')return;fallbackDownload(json,fileName)});
     return;
   }
   fallbackDownload(json,fileName);
@@ -1326,7 +1115,7 @@ function fallbackDownload(json,fileName){
   var blob=new Blob([json],{type:'application/json'}),url=URL.createObjectURL(blob);
   var a=document.createElement('a');a.href=url;a.download=fileName;
   document.body.appendChild(a);a.click();document.body.removeChild(a);
-  setTimeout(function(){URL.revokeObjectURL(url);},1500);
+  setTimeout(function(){URL.revokeObjectURL(url)},1500);
   toast('已触发下载，请查看通知栏 / 下载 / 文件App');
 }
 function importAll(){
@@ -1349,7 +1138,7 @@ function importAll(){
           DB.checkinLogs.forEach(function(c){ps.push(idbPut('checkinLogs',c))});
           DB.plans.forEach(function(c){ps.push(idbPut('plans',c))});
           if(todayBgImg)ps.push(idbPut('settings',{id:'todayBg',img:todayBgImg}));
-          Promise.all(ps).then(function(){toast('导入完成');go('collections');});
+          Promise.all(ps).then(function(){toast('导入完成');go('collections')});
         });
       }catch(err){toast('文件格式错误')}
     };
@@ -1358,24 +1147,16 @@ function importAll(){
   inp.click();
 }
 
-/* ===== 启动：先显示 UI，再异步初始化 ===== */
 function showBootError(msg){
   var box=document.getElementById('bootErr');
   if(!box)return;
-  box.style.display='flex';
-  box.querySelector('.msg').textContent=msg;
+  box.style.display='flex';box.querySelector('.msg').textContent=msg;
 }
-function hideBootError(){
-  var box=document.getElementById('bootErr');
-  if(box)box.style.display='none';
-}
+function hideBootError(){var box=document.getElementById('bootErr');if(box)box.style.display='none'}
 
-/* 先渲染一次空壳，让用户立即看到页面 */
-try{go('collections');}catch(e){}
+try{go('collections')}catch(e){}
 
-/* 异步初始化 IDB + 数据 */
 (function boot(){
-  /* 隐私模式 / 无 IDB 时，直接走内存，不报错 */
   openIDB().then(function(){
     return Promise.all([idbAll('categories'),idbAll('works'),idbAll('checkins'),idbAll('checkinLogs'),idbAll('plans'),idbAll('settings')]);
   }).then(function(r){
@@ -1384,24 +1165,19 @@ try{go('collections');}catch(e){}
     todayBgImg=st?st.img:null;
     if(!DB.categories.length){
       var defs=['练习','创作','速写','长期作品'],ps=[];
-      defs.forEach(function(n){var c={id:uid(),name:n};DB.categories.push(c);ps.push(idbPut('categories',c));});
+      defs.forEach(function(n){var c={id:uid(),name:n};DB.categories.push(c);ps.push(idbPut('categories',c))});
       return Promise.all(ps);
     }
   }).then(function(){
     hideBootError();
-    try{go('collections');}catch(e){showBootError('页面渲染失败：'+(e.message||''));}
+    try{go('collections')}catch(e){showBootError('页面渲染失败：'+(e.message||''))}
   }).catch(function(e){
-    /* IDB 失败不阻塞使用，切内存模式继续 */
     console.warn('IDB 初始化失败，切换内存模式：',e);
-    idb=null; /* 确保后续都走内存 */
-    DB.categories=[];DB.works=[];DB.checkins=[];DB.checkinLogs=[];DB.plans=[];todayBgImg=null;
-    if(!DB.categories.length){
-      ['练习','创作','速写','长期作品'].forEach(function(n){DB.categories.push({id:uid(),name:n});});
-    }
+    idb=null;DB.categories=[];DB.works=[];DB.checkins=[];DB.checkinLogs=[];DB.plans=[];todayBgImg=null;
+    if(!DB.categories.length)['练习','创作','速写','长期作品'].forEach(function(n){DB.categories.push({id:uid(),name:n})});
     hideBootError();
-    try{go('collections');}catch(err){showBootError('页面渲染失败：'+(err.message||''));}
-    /* 显示一次提示，告知用户当前是内存模式 */
-    setTimeout(function(){toast('当前为内存模式，数据退出后会丢失');},500);
+    try{go('collections')}catch(err){showBootError('页面渲染失败：'+(err.message||''))}
+    setTimeout(function(){toast('当前为内存模式，数据退出后会丢失')},500);
   });
 })();
 </script>
