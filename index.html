@@ -246,6 +246,17 @@ function fmtDurCal(m){m=Math.round(m||0);if(m<60)return m+'min';var h=Math.floor
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function toast(m){var t=document.createElement('div');t.textContent=m;t.style.cssText='position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:9999';document.body.appendChild(t);setTimeout(function(){t.remove()},1600)}
 
+/* ===== 日期输入框增强：点击直接弹系统选择器 ===== */
+function bindDatePicker(el){
+  if(!el)return;
+  el.addEventListener('click',function(){
+    if(this.showPicker){try{this.showPicker()}catch(e){}}
+  });
+  el.addEventListener('focus',function(){
+    if(this.showPicker){try{this.showPicker()}catch(e){}}
+  });
+}
+
 function processImage(file){
   return new Promise(function(res,rej){
     if(!file){rej(new Error('无文件'));return;}
@@ -291,8 +302,6 @@ function processImageList(files){
     launch();
   });
 }
-
-/* ===== 压缩已存的 dataURL ===== */
 function compressDataUrl(dataUrl){
   return new Promise(function(resolve){
     if(!dataUrl||typeof dataUrl!=='string'||dataUrl.indexOf('data:image')!==0){resolve(dataUrl);return}
@@ -361,10 +370,7 @@ function compressAllStoredImages(){
 }
 function showCompressProgress(done,total){
   var el=document.getElementById('compressProgress');
-  if(!el){
-    el=document.createElement('div');el.id='compressProgress';
-    document.body.appendChild(el);
-  }
+  if(!el){el=document.createElement('div');el.id='compressProgress';document.body.appendChild(el)}
   var pct=total?Math.round(done/total*100):0;
   el.innerHTML='<div>正在压缩图片…</div><div style="font-size:22px;font-weight:700">'+done+' / '+total+'</div><div style="width:200px;height:6px;background:rgba(255,255,255,.2);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:#fff;transition:width .2s"></div></div>';
 }
@@ -431,7 +437,16 @@ function stageDur(w,i){var prev=i===0?0:(w.stages[i-1].cumulative||0);return (w.
 function stageDurArr(stages,i){var prev=i===0?0:(stages[i-1].cumulative||0);return (stages[i].cumulative||0)-prev}
 function workCover(w){if(!w.stages||!w.stages.length)return null;for(var i=w.stages.length-1;i>=0;i--){var imgs=w.stages[i].images;if(imgs&&imgs.length)return imgs[imgs.length-1]}return null}
 function workImgCount(w){var n=0;(w.stages||[]).forEach(function(s){n+=(s.images||[]).length});return n}
-function workCreatedAt(w){if(w.createdAt)return w.createdAt;if(w.stages&&w.stages.length&&w.stages[0].date)return new Date(w.stages[0].date+'T00:00:00').getTime();return null}
+
+/* ===== 修复：优先用第一阶段日期，让用户改的日期生效 ===== */
+function workCreatedAt(w){
+  if(w.stages&&w.stages.length&&w.stages[0].date){
+    var t=new Date(w.stages[0].date+'T00:00:00').getTime();
+    if(!isNaN(t))return t;
+  }
+  if(w.createdAt)return w.createdAt;
+  return null;
+}
 function getAllWorkImages(w){var a=[];(w.stages||[]).forEach(function(s){(s.images||[]).forEach(function(im){a.push(im)})});return a}
 
 function getAutoAssignedWorks(plan,allWorks){
@@ -589,6 +604,9 @@ function addWorkModal(work,category){
     if(state._editWorkId===work.id&&state._editStages){editStages=state._editStages}
     else{try{editStages=JSON.parse(JSON.stringify(work.stages||[]))}catch(e){editStages=(work.stages||[]).map(function(s){return{images:(s.images||[]).slice(),cumulative:s.cumulative,date:s.date,note:s.note}})}state._editWorkId=work.id;state._editStages=editStages}
   }
+  /* 默认日期：编辑时用第一阶段日期，添加时用今天 */
+  var defaultDate=today();
+  if(editing&&editStages&&editStages.length&&editStages[0].date)defaultDate=editStages[0].date;
   var body='<label class="fld">分类</label><select id="wf-cat">';
   DB.categories.forEach(function(c){body+='<option value="'+esc(c.name)+'"'+(c.name===category?' selected':'')+'>'+esc(c.name)+'</option>'});
   body+='</select><label class="fld">评分（必填）</label>'+starsHTML(rating,false).replace('class="stars"','class="stars" id="wf-stars"');
@@ -599,12 +617,12 @@ function addWorkModal(work,category){
   }
   body+='<label class="fld">作品备注（可选）</label><textarea id="wf-note" placeholder="整体想法、感受">'+(work?esc(work.note||''):'')+'</textarea>';
   if(editing&&editStages&&editStages.length){
-    body+='<div class="existing-stages"><div class="muted" style="margin-bottom:8px;font-weight:500">已有阶段（可编辑、删除；删除后需点“保存”才生效）</div>';
+    body+='<div class="existing-stages"><div class="muted" style="margin-bottom:8px;font-weight:500">已有阶段（可编辑日期、换图、删除；删除后需点“保存”才生效）</div>';
     editStages.forEach(function(stage,idx){
       var prevCum=idx===0?0:(editStages[idx-1].cumulative||0),dur=(stage.cumulative||0)-prevCum;
-      body+='<div class="existing-stage-row"><div class="existing-stage-label">阶段 '+(idx+1)+' · '+fmtDur(dur)+' · 累计 '+fmtDur(stage.cumulative)+(stage.note?' · '+esc(stage.note):'')+'</div>';
+      body+='<div class="existing-stage-row"><div class="existing-stage-label">阶段 '+(idx+1)+' · '+fmtDur(dur)+' · 累计 '+fmtDur(stage.cumulative)+(stage.date?' · '+esc(stage.date):'')+(stage.note?' · '+esc(stage.note):'')+'</div>';
       if(stage.images&&stage.images.length){body+='<div class="existing-stage-thumbs">';stage.images.forEach(function(img,i){body+='<img src="'+img+'" data-stageimg="'+idx+'_'+i+'">'});body+='</div>'}
-      body+='<div class="stage-btn-row"><button class="btn o" id="stage-edit-btn-'+idx+'" type="button">编辑 / 换图</button><button class="btn o" id="stage-del-btn-'+idx+'" type="button" style="color:#c33">删除</button></div></div>';
+      body+='<div class="stage-btn-row"><button class="btn o" id="stage-edit-btn-'+idx+'" type="button">编辑 / 换图 / 改日期</button><button class="btn o" id="stage-del-btn-'+idx+'" type="button" style="color:#c33">删除</button></div></div>';
     });
     body+='</div>';
   }
@@ -612,11 +630,13 @@ function addWorkModal(work,category){
   body+='<label class="fld">图片（可多选，自动压缩，长边最多1600px；已选图片可单独删除）</label><input type="file" id="wf-file" accept="image/*" multiple><div id="wf-prev" class="grid34" style="margin-top:10px"></div>';
   body+='<label class="fld">'+(editing?'新阶段累计总时长':'累计总时长')+'</label>';
   body+='<div class="dur-row"><input type="number" id="wf-h" min="0" placeholder="时" value="'+defH+'"><span class="lbl">时</span><input type="number" id="wf-m" min="0" max="59" placeholder="分" value="'+defM+'"><span class="lbl">分</span></div>';
-  body+='<label class="fld">日期</label><input type="date" id="wf-date" value="'+today()+'">';
+  body+='<label class="fld">日期（新阶段的日期）</label><input type="date" id="wf-date" value="'+today()+'">';
   body+='<label class="fld">阶段备注（可选）</label><textarea id="wf-snote"></textarea>';
   openModal(editing?'编辑作品':'添加作品',body,'<button class="btn o" data-close>取消</button><button class="btn" id="wf-save">保存</button>');
   var starsEl=document.getElementById('wf-stars');
   starsEl.querySelectorAll('span').forEach(function(s){s.onclick=function(){rating=Number(s.dataset.v);starsEl.querySelectorAll('span').forEach(function(x){x.classList.toggle('on',Number(x.dataset.v)<=rating)})}});
+  /* 日期输入框增强 */
+  bindDatePicker(document.getElementById('wf-date'));
   document.querySelectorAll('[data-stageimg]').forEach(function(el){
     el.onclick=function(e){
       e.stopPropagation();
@@ -667,6 +687,11 @@ function addWorkModal(work,category){
     if(editing){
       work.category=cat;work.note=note;work.planId=planId;work.rating=rating;
       work.stages=editStages.map(function(s){return{images:(s.images||[]).slice(),cumulative:s.cumulative,date:s.date,note:s.note}});
+      /* 同步 createdAt 到第一阶段日期，让时间线一致 */
+      if(work.stages.length&&work.stages[0].date){
+        var t0=new Date(work.stages[0].date+'T00:00:00').getTime();
+        if(!isNaN(t0))work.createdAt=t0;
+      }
       if(newFiles.length){
         var cum=(parseInt(document.getElementById('wf-h').value)||0)*60+(parseInt(document.getElementById('wf-m').value)||0);
         var date=document.getElementById('wf-date').value||today(),snote=document.getElementById('wf-snote').value.trim();
@@ -680,7 +705,9 @@ function addWorkModal(work,category){
       var cum2=(parseInt(document.getElementById('wf-h').value)||0)*60+(parseInt(document.getElementById('wf-m').value)||0);
       if(cum2<=0){toast('请输入累计时长');return}
       var date2=document.getElementById('wf-date').value||today(),snote2=document.getElementById('wf-snote').value.trim();
-      var nw={id:uid(),category:cat,rating:rating,planId:planId,note:note,createdAt:Date.now(),stages:[{images:newFiles.slice(),cumulative:cum2,date:date2,note:snote2}]};
+      var createdTs=new Date(date2+'T00:00:00').getTime();
+      if(isNaN(createdTs))createdTs=Date.now();
+      var nw={id:uid(),category:cat,rating:rating,planId:planId,note:note,createdAt:createdTs,stages:[{images:newFiles.slice(),cumulative:cum2,date:date2,note:snote2}]};
       DB.works.push(nw);
       idbPut('works',nw).then(function(){closeModal();toast('已添加');renderCategoryView()});
     }
@@ -712,8 +739,13 @@ function openEditStageModal(stages,idx,work){
   var stage=stages[idx];if(!stage)return;
   var prevCum=idx===0?0:(stages[idx-1].cumulative||0),oldDur=(stage.cumulative||0)-prevCum;
   var oldH=Math.floor(oldDur/60),oldM=oldDur%60,editImages=(stage.images||[]).slice();
-  var body='<label class="fld">本阶段用时（不能小于原来，可留空不改）</label><div class="dur-row"><input type="number" id="edit-h" min="0" placeholder="时" value="'+oldH+'"><span class="lbl">时</span><input type="number" id="edit-m" min="0" max="59" placeholder="分" value="'+oldM+'"><span class="lbl">分</span></div><div class="muted" style="margin-top:-6px;margin-bottom:12px">原用时：'+fmtDur(oldDur)+'</div><label class="fld">日期</label><input type="date" id="edit-date" value="'+(stage.date||today())+'"><label class="fld">备注</label><textarea id="edit-note">'+esc(stage.note||'')+'</textarea><label class="fld">阶段图片（点图片可替换 / 删除 / 查看大图）</label><div id="edit-imgs-wrap"></div><label class="fld" style="margin-top:8px">追加图片（可多选，自动压缩）</label><input type="file" id="edit-add-img" accept="image/*" multiple>';
+  var body='<label class="fld">本阶段用时（不能小于原来，可留空不改）</label><div class="dur-row"><input type="number" id="edit-h" min="0" placeholder="时" value="'+oldH+'"><span class="lbl">时</span><input type="number" id="edit-m" min="0" max="59" placeholder="分" value="'+oldM+'"><span class="lbl">分</span></div><div class="muted" style="margin-top:-6px;margin-bottom:12px">原用时：'+fmtDur(oldDur)+'</div>';
+  body+='<label class="fld">日期（可修改，保存后生效）</label><input type="date" id="edit-date" value="'+(stage.date||today())+'">';
+  body+='<label class="fld">备注</label><textarea id="edit-note">'+esc(stage.note||'')+'</textarea>';
+  body+='<label class="fld">阶段图片（点图片可替换 / 删除 / 查看大图）</label><div id="edit-imgs-wrap"></div><label class="fld" style="margin-top:8px">追加图片（可多选，自动压缩）</label><input type="file" id="edit-add-img" accept="image/*" multiple>';
   openModal('编辑阶段 '+(idx+1),body,'<button class="btn o" data-close>取消</button><button class="btn" id="edit-save">保存</button>');
+  /* 日期输入框增强 */
+  bindDatePicker(document.getElementById('edit-date'));
   function refreshImgArea(){
     var wrap=document.getElementById('edit-imgs-wrap');if(!wrap)return;
     if(editImages.length){
@@ -1170,7 +1202,7 @@ function renderSettings(){
   h+='<button class="btn o" id="expBtn">一键导出所有数据</button><button class="btn o" id="impBtn">一键导入数据</button>';
   var totalImgs=0;DB.works.forEach(function(w){totalImgs+=workImgCount(w)});
   h+='<div class="card"><h3>存储</h3><div class="muted">作品 '+DB.works.length+' 个 · 图片 '+totalImgs+' 张<br>使用 '+(idb?'IndexedDB':'内存（本次会话有效，退出后丢失）')+'<br>新图压缩：长边≤'+IMG_MAX_SIDE+'px，JPEG质量 '+Math.round(IMG_QUALITY*100)+'%</div></div>';
-  h+='<div class="card"><h3>说明</h3><div class="muted">新上传图片自动压缩保存（长边最多 '+IMG_MAX_SIDE+'px，JPEG 质量 '+Math.round(IMG_QUALITY*100)+'%），GIF 动图保留原样。已存的旧图片不会自动处理，可用上方「压缩已存图片」按钮批量压缩。导出文件为 JSON 格式，包含所有分类、作品、图片、打卡、打卡备注、计划、卡片背景。</div></div>';
+  h+='<div class="card"><h3>说明</h3><div class="muted">新上传图片自动压缩保存（长边最多 '+IMG_MAX_SIDE+'px，JPEG 质量 '+Math.round(IMG_QUALITY*100)+'%），GIF 动图保留原样。已存的旧图片不会自动处理，可用上方「压缩已存图片」按钮批量压缩。编辑作品时可以修改阶段的日期，保存后时间线同步更新。</div></div>';
   view.innerHTML=h;
   document.getElementById('addCat').onclick=addCategoryModal;
   document.getElementById('compressBtn').onclick=compressAllStoredImages;
