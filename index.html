@@ -178,9 +178,12 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .edit-stage-imgs .esi-cell{aspect-ratio:1;background:#d8d8dd;border-radius:8px;overflow:hidden;cursor:pointer;position:relative}
 .edit-stage-imgs .esi-cell img{width:100%;height:100%;object-fit:cover;display:block}
 .edit-stage-imgs .esi-cell::after{content:'✎';position:absolute;bottom:2px;right:4px;color:#fff;font-size:13px;text-shadow:0 1px 3px rgba(0,0,0,.7)}
-.img-viewer-mask{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:300;display:none;align-items:center;justify-content:center;user-select:none;overflow:hidden}
-.img-viewer-mask.on{display:flex}
-.img-viewer-mask img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+/* ===== 图片查看器（可缩放） ===== */
+.img-viewer-mask{position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:300;display:none;user-select:none;-webkit-user-select:none;overflow:hidden;touch-action:none;-webkit-touch-callout:none}
+.img-viewer-mask.on{display:block}
+.iv-stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none;cursor:grab}
+.iv-stage:active{cursor:grabbing}
+.iv-stage img{max-width:100%;max-height:100%;display:block;transform-origin:center center;will-change:transform;backface-visibility:hidden;user-select:none;-webkit-user-drag:none;pointer-events:none}
 .iv-close{position:absolute;top:16px;right:16px;width:44px;height:44px;border:none;background:rgba(255,255,255,.18);color:#fff;font-size:22px;border-radius:50%;cursor:pointer;line-height:1;font-family:inherit;padding:0;z-index:2}
 .iv-prev,.iv-next{position:absolute;top:50%;transform:translateY(-50%);width:52px;height:52px;border:none;background:rgba(255,255,255,.18);color:#fff;font-size:28px;border-radius:50%;cursor:pointer;line-height:1;font-family:inherit;padding:0;display:flex;align-items:center;justify-content:center;z-index:2}
 .iv-prev{left:12px}.iv-next{right:12px}
@@ -223,7 +226,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 </div>
 <div id="modalRoot"></div>
 <div class="img-viewer-mask" id="imgViewerMask">
-  <img src="" id="imgViewerImg" alt="">
+  <div class="iv-stage" id="ivStage"><img src="" id="imgViewerImg" alt=""></div>
   <button class="iv-close" id="ivClose" type="button">✕</button>
   <button class="iv-prev" id="ivPrev" type="button">‹</button>
   <button class="iv-next" id="ivNext" type="button">›</button>
@@ -246,15 +249,10 @@ function fmtDurCal(m){m=Math.round(m||0);if(m<60)return m+'min';var h=Math.floor
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function toast(m){var t=document.createElement('div');t.textContent=m;t.style.cssText='position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:9999';document.body.appendChild(t);setTimeout(function(){t.remove()},1600)}
 
-/* ===== 日期输入框增强：点击直接弹系统选择器 ===== */
 function bindDatePicker(el){
   if(!el)return;
-  el.addEventListener('click',function(){
-    if(this.showPicker){try{this.showPicker()}catch(e){}}
-  });
-  el.addEventListener('focus',function(){
-    if(this.showPicker){try{this.showPicker()}catch(e){}}
-  });
+  el.addEventListener('click',function(){if(this.showPicker){try{this.showPicker()}catch(e){}}});
+  el.addEventListener('focus',function(){if(this.showPicker){try{this.showPicker()}catch(e){}}});
 }
 
 function processImage(file){
@@ -407,13 +405,97 @@ function bindTapAndDoubleTap(el,onSingle,onDouble){
   el.addEventListener('click',function(e){e.preventDefault();e.stopPropagation()});
 }
 
-function openImageViewer(imgs,idx,syncWork){viewerImgs=imgs||[];viewerIdx=idx||0;viewerSyncWork=!!syncWork;renderViewer();document.getElementById('imgViewerMask').classList.add('on')}
+/* ===== 图片查看器：双击放大 / 双指缩放 / 拖拽移动 / 滚轮缩放 ===== */
+var ivImgEl=document.getElementById('imgViewerImg'),ivStage=document.getElementById('ivStage'),ivMaskEl=document.getElementById('imgViewerMask');
+var iv={s:1,x:0,y:0},ivPts={},ivDrag=null,ivLastDist=0,ivLastMid=null,ivTapT=null,ivLastTap=0,ivMoved=false,ivMaxPts=0;
+function ivApply(){ivImgEl.style.transform='translate3d('+iv.x.toFixed(2)+'px,'+iv.y.toFixed(2)+'px,0) scale('+iv.s.toFixed(4)+')'}
+function ivReset(){iv.s=1;iv.x=0;iv.y=0;ivApply()}
+function ivClamp(){
+  var w=ivImgEl.clientWidth,h=ivImgEl.clientHeight,sw=ivStage.clientWidth,sh=ivStage.clientHeight;
+  if(!w||!h)return;
+  var mx=Math.max(0,(w*iv.s-sw)/2),my=Math.max(0,(h*iv.s-sh)/2);
+  iv.x=Math.min(mx,Math.max(-mx,iv.x));
+  iv.y=Math.min(my,Math.max(-my,iv.y));
+}
+function ivZoom(k,cx,cy){
+  var ns=Math.min(8,Math.max(1,iv.s*k)),r=ns/iv.s;
+  iv.x=cx-r*(cx-iv.x);iv.y=cy-r*(cy-iv.y);iv.s=ns;
+  if(iv.s<=1.001){iv.s=1;iv.x=0;iv.y=0}
+  ivClamp();ivApply();
+}
+function ivArr(){return Object.keys(ivPts).map(function(k){return ivPts[k]})}
+function ivDist(){var a=ivArr();return Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y)}
+function ivMid(){var a=ivArr();return{x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2}}
+function ivRel(p){var r=ivStage.getBoundingClientRect();return{x:p.x-r.left-r.width/2,y:p.y-r.top-r.height/2}}
+function ivTap(e){
+  var now=Date.now();
+  if(now-ivLastTap<300){
+    ivLastTap=0;if(ivTapT){clearTimeout(ivTapT);ivTapT=null}
+    var c=ivRel({x:e.clientX,y:e.clientY});
+    if(iv.s>1.01)ivReset();else ivZoom(2.5,c.x,c.y);
+    if(navigator.vibrate){try{navigator.vibrate(20)}catch(_){}}
+  }else{
+    ivLastTap=now;
+    if(ivTapT)clearTimeout(ivTapT);
+    ivTapT=setTimeout(function(){ivTapT=null;closeImageViewer()},300);
+  }
+}
+ivStage.addEventListener('pointerdown',function(e){
+  if(e.pointerType==='mouse'&&e.button!==0)return;
+  e.preventDefault();
+  try{ivStage.setPointerCapture(e.pointerId)}catch(_){}
+  ivPts[e.pointerId]={x:e.clientX,y:e.clientY};
+  var n=Object.keys(ivPts).length;if(n>ivMaxPts)ivMaxPts=n;
+  if(n===1){ivDrag={sx:e.clientX,sy:e.clientY,ox:iv.x,oy:iv.y};ivMoved=false}
+  else{ivDrag=null;ivLastDist=ivDist();ivLastMid=ivMid();ivMoved=true}
+});
+ivStage.addEventListener('pointermove',function(e){
+  if(!ivPts[e.pointerId])return;
+  ivPts[e.pointerId]={x:e.clientX,y:e.clientY};
+  var n=Object.keys(ivPts).length;
+  if(n>=2){
+    e.preventDefault();
+    var d=ivDist(),m=ivMid();
+    if(ivLastMid){iv.x+=m.x-ivLastMid.x;iv.y+=m.y-ivLastMid.y}
+    if(ivLastDist>0&&d>0){var c=ivRel(m);ivZoom(d/ivLastDist,c.x,c.y)}
+    ivLastDist=d;ivLastMid=m;
+  }else if(ivDrag){
+    var dx=e.clientX-ivDrag.sx,dy=e.clientY-ivDrag.sy;
+    if(Math.abs(dx)>4||Math.abs(dy)>4)ivMoved=true;
+    if(iv.s>1.001){e.preventDefault();iv.x=ivDrag.ox+dx;iv.y=ivDrag.oy+dy;ivClamp();ivApply()}
+  }
+});
+function ivEnd(e){
+  if(!ivPts[e.pointerId])return;
+  delete ivPts[e.pointerId];
+  var n=Object.keys(ivPts).length;
+  if(n<2){ivLastDist=0;ivLastMid=null}
+  if(n===1){var a=ivArr()[0];ivDrag={sx:a.x,sy:a.y,ox:iv.x,oy:iv.y};ivMoved=true}
+  if(n===0){
+    ivDrag=null;
+    var single=ivMaxPts<=1;ivMaxPts=0;
+    if(single&&!ivMoved)ivTap(e);
+  }
+}
+ivStage.addEventListener('pointerup',ivEnd);
+ivStage.addEventListener('pointercancel',ivEnd);
+ivStage.addEventListener('wheel',function(e){
+  e.preventDefault();
+  var c=ivRel({x:e.clientX,y:e.clientY});
+  ivZoom(e.deltaY<0?1.18:1/1.18,c.x,c.y);
+},{passive:false});
+
+function openImageViewer(imgs,idx,syncWork){
+  viewerImgs=imgs||[];viewerIdx=idx||0;viewerSyncWork=!!syncWork;
+  renderViewer();
+  ivMaskEl.classList.add('on');
+}
 function renderViewer(){
-  var mask=document.getElementById('imgViewerMask'),imgEl=document.getElementById('imgViewerImg'),
-      prev=document.getElementById('ivPrev'),next=document.getElementById('ivNext'),counter=document.getElementById('ivCounter');
-  if(!viewerImgs.length){mask.classList.remove('on');return}
+  var prev=document.getElementById('ivPrev'),next=document.getElementById('ivNext'),counter=document.getElementById('ivCounter');
+  if(!viewerImgs.length){ivMaskEl.classList.remove('on');return}
   if(viewerIdx<0)viewerIdx=0;if(viewerIdx>viewerImgs.length-1)viewerIdx=viewerImgs.length-1;
-  imgEl.src=viewerImgs[viewerIdx];
+  ivReset();
+  ivImgEl.src=viewerImgs[viewerIdx];
   var multi=viewerImgs.length>1;
   prev.style.display=multi?'flex':'none';next.style.display=multi?'flex':'none';counter.style.display=multi?'block':'none';
   prev.disabled=viewerIdx===0;next.disabled=viewerIdx===viewerImgs.length-1;
@@ -421,16 +503,15 @@ function renderViewer(){
 }
 function closeImageViewer(){
   var sync=viewerSyncWork,lastIdx=viewerIdx;
-  document.getElementById('imgViewerMask').classList.remove('on');
+  ivMaskEl.classList.remove('on');
+  ivReset();
   viewerImgs=[];viewerIdx=0;viewerSyncWork=false;
+  if(ivTapT){clearTimeout(ivTapT);ivTapT=null}
   if(sync&&state.workId){state.workImgIdx=lastIdx;renderWorkView()}
 }
 document.getElementById('ivClose').onclick=function(e){e.stopPropagation();closeImageViewer()};
 document.getElementById('ivPrev').onclick=function(e){e.stopPropagation();if(viewerIdx>0){viewerIdx--;renderViewer()}};
 document.getElementById('ivNext').onclick=function(e){e.stopPropagation();if(viewerIdx<viewerImgs.length-1){viewerIdx++;renderViewer()}};
-document.getElementById('imgViewerMask').addEventListener('click',function(e){
-  if(e.target.id==='imgViewerImg'||e.target===this)closeImageViewer();
-});
 
 function workTotal(w){return(!w.stages||!w.stages.length)?0:(w.stages[w.stages.length-1].cumulative||0)}
 function stageDur(w,i){var prev=i===0?0:(w.stages[i-1].cumulative||0);return (w.stages[i].cumulative||0)-prev}
@@ -438,7 +519,6 @@ function stageDurArr(stages,i){var prev=i===0?0:(stages[i-1].cumulative||0);retu
 function workCover(w){if(!w.stages||!w.stages.length)return null;for(var i=w.stages.length-1;i>=0;i--){var imgs=w.stages[i].images;if(imgs&&imgs.length)return imgs[imgs.length-1]}return null}
 function workImgCount(w){var n=0;(w.stages||[]).forEach(function(s){n+=(s.images||[]).length});return n}
 
-/* ===== 修复：优先用第一阶段日期，让用户改的日期生效 ===== */
 function workCreatedAt(w){
   if(w.stages&&w.stages.length&&w.stages[0].date){
     var t=new Date(w.stages[0].date+'T00:00:00').getTime();
@@ -604,7 +684,6 @@ function addWorkModal(work,category){
     if(state._editWorkId===work.id&&state._editStages){editStages=state._editStages}
     else{try{editStages=JSON.parse(JSON.stringify(work.stages||[]))}catch(e){editStages=(work.stages||[]).map(function(s){return{images:(s.images||[]).slice(),cumulative:s.cumulative,date:s.date,note:s.note}})}state._editWorkId=work.id;state._editStages=editStages}
   }
-  /* 默认日期：编辑时用第一阶段日期，添加时用今天 */
   var defaultDate=today();
   if(editing&&editStages&&editStages.length&&editStages[0].date)defaultDate=editStages[0].date;
   var body='<label class="fld">分类</label><select id="wf-cat">';
@@ -635,7 +714,6 @@ function addWorkModal(work,category){
   openModal(editing?'编辑作品':'添加作品',body,'<button class="btn o" data-close>取消</button><button class="btn" id="wf-save">保存</button>');
   var starsEl=document.getElementById('wf-stars');
   starsEl.querySelectorAll('span').forEach(function(s){s.onclick=function(){rating=Number(s.dataset.v);starsEl.querySelectorAll('span').forEach(function(x){x.classList.toggle('on',Number(x.dataset.v)<=rating)})}});
-  /* 日期输入框增强 */
   bindDatePicker(document.getElementById('wf-date'));
   document.querySelectorAll('[data-stageimg]').forEach(function(el){
     el.onclick=function(e){
@@ -687,7 +765,6 @@ function addWorkModal(work,category){
     if(editing){
       work.category=cat;work.note=note;work.planId=planId;work.rating=rating;
       work.stages=editStages.map(function(s){return{images:(s.images||[]).slice(),cumulative:s.cumulative,date:s.date,note:s.note}});
-      /* 同步 createdAt 到第一阶段日期，让时间线一致 */
       if(work.stages.length&&work.stages[0].date){
         var t0=new Date(work.stages[0].date+'T00:00:00').getTime();
         if(!isNaN(t0))work.createdAt=t0;
@@ -744,7 +821,6 @@ function openEditStageModal(stages,idx,work){
   body+='<label class="fld">备注</label><textarea id="edit-note">'+esc(stage.note||'')+'</textarea>';
   body+='<label class="fld">阶段图片（点图片可替换 / 删除 / 查看大图）</label><div id="edit-imgs-wrap"></div><label class="fld" style="margin-top:8px">追加图片（可多选，自动压缩）</label><input type="file" id="edit-add-img" accept="image/*" multiple>';
   openModal('编辑阶段 '+(idx+1),body,'<button class="btn o" data-close>取消</button><button class="btn" id="edit-save">保存</button>');
-  /* 日期输入框增强 */
   bindDatePicker(document.getElementById('edit-date'));
   function refreshImgArea(){
     var wrap=document.getElementById('edit-imgs-wrap');if(!wrap)return;
@@ -1202,7 +1278,7 @@ function renderSettings(){
   h+='<button class="btn o" id="expBtn">一键导出所有数据</button><button class="btn o" id="impBtn">一键导入数据</button>';
   var totalImgs=0;DB.works.forEach(function(w){totalImgs+=workImgCount(w)});
   h+='<div class="card"><h3>存储</h3><div class="muted">作品 '+DB.works.length+' 个 · 图片 '+totalImgs+' 张<br>使用 '+(idb?'IndexedDB':'内存（本次会话有效，退出后丢失）')+'<br>新图压缩：长边≤'+IMG_MAX_SIDE+'px，JPEG质量 '+Math.round(IMG_QUALITY*100)+'%</div></div>';
-  h+='<div class="card"><h3>说明</h3><div class="muted">新上传图片自动压缩保存（长边最多 '+IMG_MAX_SIDE+'px，JPEG 质量 '+Math.round(IMG_QUALITY*100)+'%），GIF 动图保留原样。已存的旧图片不会自动处理，可用上方「压缩已存图片」按钮批量压缩。编辑作品时可以修改阶段的日期，保存后时间线同步更新。</div></div>';
+  h+='<div class="card"><h3>说明</h3><div class="muted">新上传图片自动压缩保存（长边最多 '+IMG_MAX_SIDE+'px，JPEG 质量 '+Math.round(IMG_QUALITY*100)+'%），GIF 动图保留原样。已存的旧图片不会自动处理，可用上方「压缩已存图片」按钮批量压缩。编辑作品时可以修改阶段的日期，保存后时间线同步更新。图片查看器支持双击放大、双指缩放、拖拽移动、滚轮缩放。</div></div>';
   view.innerHTML=h;
   document.getElementById('addCat').onclick=addCategoryModal;
   document.getElementById('compressBtn').onclick=compressAllStoredImages;
