@@ -130,6 +130,9 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .mood-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
 .mood-chip{padding:9px 2px;border-radius:18px;border:1px solid #ddd;background:#fff;font-size:12px;color:#666;cursor:pointer;font-family:inherit;line-height:1.2;text-align:center;transition:background .15s,color .15s,border-color .15s}
 .mood-chip.on{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.plan-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.plan-chip{padding:8px 14px;border-radius:18px;border:1px solid #ddd;background:#fff;font-size:13px;color:#666;cursor:pointer;font-family:inherit;line-height:1.2;text-align:center;transition:background .15s,color .15s,border-color .15s}
+.plan-chip.on{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
 .existing-stages{background:#f7f8fa;border-radius:8px;padding:10px;margin-bottom:12px}
 .existing-stage-row{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #e2e2e8}
 .existing-stage-row:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
@@ -253,6 +256,14 @@ function fmtDur(m){m=Math.round(m||0);if(m<60)return m+'分';var h=Math.floor(m/
 function fmtDurCal(m){m=Math.round(m||0);if(m<60)return m+'min';var h=Math.floor(m/60),mm=m%60;return mm?h+'h'+mm+'min':h+'h'}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function toast(m){var t=document.createElement('div');t.textContent=m;t.style.cssText='position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:9999';document.body.appendChild(t);setTimeout(function(){t.remove()},1600)}
+
+/* ===== 兼容：读取作品所属的多个计划 id ===== */
+function getPlanIds(w){
+  if(!w)return [];
+  if(w.planIds&&Array.isArray(w.planIds)&&w.planIds.length)return w.planIds;
+  if(w.planId)return [w.planId];
+  return [];
+}
 
 function bindDatePicker(el){
   if(!el)return;
@@ -568,10 +579,20 @@ function workMoodsHTML(w){
   return h+'</div>';
 }
 
+/* ===== 节点：按时间轴顺延，支持一个作品属于多个计划 ===== */
 function getAutoAssignedWorks(plan,allWorks){
   var nodes=plan.nodes||[],assigned=nodes.map(function(n){return{node:n,works:[],totalMin:0,images:[],workMap:{}}}),nodeRanges=[],cursor=0;
-  nodes.forEach(function(n){var hMin=(n.hours||0)*60;nodeRanges.push({start:cursor,end:cursor+hMin});cursor+=hMin});
-  var targetWorks=allWorks.filter(function(w){return String(w.planId)===String(plan.id)});
+  nodes.forEach(function(n){
+    var hMin=(n.hours||0)*60;
+    if(isNaN(hMin)||hMin<=0)hMin=60;
+    nodeRanges.push({start:cursor,end:cursor+hMin});
+    cursor+=hMin;
+  });
+  var targetWorks=allWorks.filter(function(w){
+    var ids=getPlanIds(w);
+    for(var i=0;i<ids.length;i++){if(String(ids[i])===String(plan.id))return true;}
+    return false;
+  });
   targetWorks.sort(function(a,b){return (workCreatedAt(a)||0)-(workCreatedAt(b)||0)});
   var workCursor=0;
   targetWorks.forEach(function(w){
@@ -703,7 +724,15 @@ function renderWorkView(){
   }
   var ca=workCreatedAt(w);
   if(ca)h+='<div class="muted" style="margin-top:10px">添加于 '+fmtTs(ca)+'</div>';
-  if(w.planId){var p=DB.plans.find(function(x){return Number(x.id)===Number(w.planId)});if(p)h+='<div class="muted" style="margin-top:4px">计划：'+esc(p.name)+'（按时间顺延）</div>'}
+  var pids=getPlanIds(w);
+  if(pids.length){
+    var planNames=[];
+    pids.forEach(function(pid){
+      var p=DB.plans.find(function(x){return Number(x.id)===Number(pid)});
+      if(p)planNames.push(p.name);
+    });
+    if(planNames.length)h+='<div class="muted" style="margin-top:4px">计划：'+esc(planNames.join('、'))+'（按时间顺延）</div>';
+  }
   if(w.note)h+='<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f2f2f5;white-space:pre-wrap">'+esc(w.note)+'</div>';
   h+='</div>';
   var imgList=[];
@@ -757,6 +786,7 @@ function addCategoryModal(){
 function addWorkModal(work,category){
   var editing=!!work,rating=work?work.rating:0,newFiles=[],defH=editing?'':'1',defM=editing?'':'30',editStages=null;
   var selectedMoods=work?(work.moods||[]).slice():[];
+  var selectedPlanIds=work?getPlanIds(work).slice():[];
   if(editing){
     if(state._editWorkId===work.id&&state._editStages){editStages=state._editStages}
     else{try{editStages=JSON.parse(JSON.stringify(work.stages||[]))}catch(e){editStages=(work.stages||[]).map(function(s){return{images:(s.images||[]).slice(),cumulative:s.cumulative,date:s.date,note:s.note}})}state._editWorkId=work.id;state._editStages=editStages}
@@ -766,9 +796,7 @@ function addWorkModal(work,category){
   body+='</select><label class="fld">评分（必填）</label>'+starsHTML(rating,false).replace('class="stars"','class="stars" id="wf-stars"');
   body+='<label class="fld">心情标签（必选，至少一个，可多选）</label><div class="mood-grid" id="wf-moods"></div>';
   if(DB.plans.length){
-    body+='<label class="fld">加入计划（可选，按时间自动顺延到节点）</label><select id="wf-plan"><option value="">不加入计划</option>';
-    DB.plans.forEach(function(p){body+='<option value="'+p.id+'"'+(work&&String(work.planId)===String(p.id)?' selected':'')+'>'+esc(p.name)+'</option>'});
-    body+='</select>';
+    body+='<label class="fld">加入计划（可选，可多选，按时间自动顺延到节点）</label><div class="plan-chips" id="wf-plans"></div>';
   }
   body+='<label class="fld">作品备注（可选）</label><textarea id="wf-note" placeholder="整体想法、感受">'+(work?esc(work.note||''):'')+'</textarea>';
   if(editing&&editStages&&editStages.length){
@@ -796,6 +824,20 @@ function addWorkModal(work,category){
     b.onclick=function(){var idx=selectedMoods.indexOf(t);if(idx>=0){selectedMoods.splice(idx,1);b.classList.remove('on')}else{selectedMoods.push(t);b.classList.add('on')}};
     moodsEl.appendChild(b);
   });
+  var plansEl=document.getElementById('wf-plans');
+  if(plansEl){
+    DB.plans.forEach(function(p){
+      var on=selectedPlanIds.some(function(x){return String(x)===String(p.id)});
+      var b=document.createElement('button');b.type='button';b.className='plan-chip'+(on?' on':'');b.textContent=p.name;
+      b.onclick=function(){
+        var idx=-1;
+        for(var i=0;i<selectedPlanIds.length;i++){if(String(selectedPlanIds[i])===String(p.id)){idx=i;break;}}
+        if(idx>=0){selectedPlanIds.splice(idx,1);b.classList.remove('on')}
+        else{selectedPlanIds.push(p.id);b.classList.add('on')}
+      };
+      plansEl.appendChild(b);
+    });
+  }
   bindDatePicker(document.getElementById('wf-date'));
   document.querySelectorAll('[data-stageimg]').forEach(function(el){
     el.onclick=function(e){
@@ -839,14 +881,14 @@ function addWorkModal(work,category){
     processImageList(files).then(function(urls){newFiles=newFiles.concat(urls);renderNewPreview();if(urls.length<files.length)toast('部分图片处理失败，已跳过')});
     try{e.target.value=''}catch(_){}
   };
-  var planSel=document.getElementById('wf-plan');
   document.getElementById('wf-save').onclick=function(){
     if(!rating){toast('请先评分');return}
     if(!selectedMoods.length){toast('请至少选择一个心情标签');return}
-    var cat=document.getElementById('wf-cat').value,note=document.getElementById('wf-note').value.trim(),planId=null;
-    if(planSel&&planSel.value)planId=Number(planSel.value);
+    var cat=document.getElementById('wf-cat').value,note=document.getElementById('wf-note').value.trim();
     if(editing){
-      work.category=cat;work.note=note;work.planId=planId;work.rating=rating;work.moods=selectedMoods.slice();
+      work.category=cat;work.note=note;work.rating=rating;work.moods=selectedMoods.slice();
+      work.planIds=selectedPlanIds.slice();
+      work.planId=selectedPlanIds[0]||null;
       work.stages=editStages.map(function(s){return{images:(s.images||[]).slice(),cumulative:s.cumulative,date:s.date,note:s.note}});
       if(work.stages.length&&work.stages[0].date){
         var t0=new Date(work.stages[0].date+'T00:00:00').getTime();
@@ -867,7 +909,7 @@ function addWorkModal(work,category){
       var date2=document.getElementById('wf-date').value||today(),snote2=document.getElementById('wf-snote').value.trim();
       var createdTs=new Date(date2+'T00:00:00').getTime();
       if(isNaN(createdTs))createdTs=Date.now();
-      var nw={id:uid(),category:cat,rating:rating,planId:planId,note:note,createdAt:createdTs,moods:selectedMoods.slice(),stages:[{images:newFiles.slice(),cumulative:cum2,date:date2,note:snote2}]};
+      var nw={id:uid(),category:cat,rating:rating,planId:selectedPlanIds[0]||null,planIds:selectedPlanIds.slice(),note:note,createdAt:createdTs,moods:selectedMoods.slice(),stages:[{images:newFiles.slice(),cumulative:cum2,date:date2,note:snote2}]};
       DB.works.push(nw);
       idbPut('works',nw).then(function(){closeModal();toast('已添加');renderCategoryView()});
     }
@@ -931,8 +973,6 @@ function openEditStageModal(stages,idx,work){
     try{e.target.value=''}catch(_){}
   };
   document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=function(){closeModal();setTimeout(function(){addWorkModal(work,work.category)},100)}});
-
-  /* 保存：允许改大改小 */
   document.getElementById('edit-save').onclick=function(){
     var hVal=document.getElementById('edit-h').value.trim(),mVal=document.getElementById('edit-m').value.trim();
     var newDate=document.getElementById('edit-date').value,newNote=document.getElementById('edit-note').value.trim();
@@ -1095,10 +1135,14 @@ function renderCheckins(){
   if(!DB.plans.length)h+='<div class="muted" style="padding:6px 0">还没有计划</div>';
   else{
     DB.plans.forEach(function(p){
-      var works=DB.works.filter(function(w){return String(w.planId)===String(p.id)});
+      var works=DB.works.filter(function(w){
+        var ids=getPlanIds(w);
+        for(var i=0;i<ids.length;i++){if(String(ids[i])===String(p.id))return true;}
+        return false;
+      });
       var total=works.reduce(function(s,w){return s+workTotal(w)},0);
       var targetMin=(p.totalHours||0)*60,pct=targetMin?Math.min(100,total/targetMin*100):0;
-      h+='<div data-plan="'+p.id+'" style="cursor:pointer;padding:10px 0;border-bottom:1px solid #f2f2f5"><div style="font-weight:600">'+esc(p.name)+'</div><div class="muted" style="margin-top:4px">'+fmtDur(total)+' / '+p.totalHours+' 小时 · '+works.length+' 个作品</div><div class="bar"><i style="width:'+pct+'%"></i></div></div>';
+      h+='<div data-plan="'+p.id+'" style="cursor:pointer;padding:10px 0;border-bottom:1px solid #f2f2f5"><div style="font-weight:600">'+esc(p.name)+'</div><div class="muted" style="margin-top:4px">'+fmtDur(total)+' / '+(p.totalHours||0)+' 小时 · '+works.length+' 个作品</div><div class="bar"><i style="width:'+pct+'%"></i></div></div>';
     });
   }
   h+='</div></div>';view.innerHTML=h;
@@ -1135,9 +1179,13 @@ function renderPlanDetail(){
   if(!p){go('checkins');return}
   titleEl.textContent=p.name;backEl.style.display='block';actionEl.style.display='none';
   var allWorks=DB.works,assigned=getAutoAssignedWorks(p,allWorks);
-  var total=allWorks.filter(function(w){return String(w.planId)===String(p.id)}).reduce(function(s,w){return s+workTotal(w)},0);
+  var total=allWorks.filter(function(w){
+    var ids=getPlanIds(w);
+    for(var i=0;i<ids.length;i++){if(String(ids[i])===String(p.id))return true;}
+    return false;
+  }).reduce(function(s,w){return s+workTotal(w)},0);
   var targetMin=(p.totalHours||0)*60,pct=targetMin?Math.min(100,total/targetMin*100):0;
-  var h='<div class="card"><div class="muted">总进度</div><div class="big" style="margin-top:4px">'+fmtDur(total)+' / '+p.totalHours+' 小时</div><div class="bar" style="height:10px;margin-top:8px"><i style="width:'+pct+'%"></i></div><div class="muted" style="margin-top:6px">'+pct.toFixed(1)+'% · 作品按时间轴顺延，可跨多个节点</div></div>';
+  var h='<div class="card"><div class="muted">总进度</div><div class="big" style="margin-top:4px">'+fmtDur(total)+' / '+(p.totalHours||0)+' 小时</div><div class="bar" style="height:10px;margin-top:8px"><i style="width:'+pct+'%"></i></div><div class="muted" style="margin-top:6px">'+pct.toFixed(1)+'% · 作品按时间轴顺延，可跨多个节点</div></div>';
   var nodes=p.nodes||[];
   if(nodes.length){
     if(state.nodeIdx<0)state.nodeIdx=0;if(state.nodeIdx>nodes.length-1)state.nodeIdx=nodes.length-1;
@@ -1170,9 +1218,16 @@ function renderPlanDetail(){
   var pc=document.getElementById('pickCoverBtn');
   if(pc)pc.onclick=function(e){e.stopPropagation();pickCover(p,nodes[state.nodeIdx].id)};
   document.getElementById('delPlan').onclick=function(){
-    if(!confirm('删除这个计划？相关作品不会被删除。'))return;
-    var updates=DB.works.filter(function(w){return String(w.planId)===String(state.planId)});
-    updates.forEach(function(w){w.planId=null});
+    if(!confirm('删除这个计划？相关作品不会被删除，但会从它们的计划列表中移除。'))return;
+    var updates=DB.works.filter(function(w){
+      var ids=getPlanIds(w);
+      for(var i=0;i<ids.length;i++){if(String(ids[i])===String(state.planId))return true;}
+      return false;
+    });
+    updates.forEach(function(w){
+      w.planIds=getPlanIds(w).filter(function(x){return String(x)!==String(state.planId)});
+      w.planId=w.planIds[0]||null;
+    });
     var ps=updates.map(function(w){return idbPut('works',w)});
     ps.push(idbDel('plans',state.planId));
     Promise.all(ps).then(function(){DB.plans=DB.plans.filter(function(x){return Number(x.id)!==Number(state.planId)});toast('已删除');state.planId=null;go('checkins')});
@@ -1371,7 +1426,7 @@ function renderSettings(){
   h+='<button class="btn o" id="expBtn">一键导出所有数据</button><button class="btn o" id="impBtn">一键导入数据</button>';
   var totalImgs=0;DB.works.forEach(function(w){totalImgs+=workImgCount(w)});
   h+='<div class="card"><h3>存储</h3><div class="muted">作品 '+DB.works.length+' 个 · 图片 '+totalImgs+' 张<br>使用 '+(idb?'IndexedDB':'内存（本次会话有效，退出后丢失）')+'<br>新图压缩：长边≤'+IMG_MAX_SIDE+'px，JPEG质量 '+Math.round(IMG_QUALITY*100)+'%</div></div>';
-  h+='<div class="card"><h3>说明</h3><div class="muted">新上传图片自动压缩保存，GIF 动图保留原样。编辑作品的阶段可以自由改时长（改大改小都行），改完点保存生效。图片查看器支持双指缩放、双击放大、单指拖拽、滚轮缩放。心情标签支持多选，点击作品卡片上的标签可查看同标签所有作品。</div></div>';
+  h+='<div class="card"><h3>说明</h3><div class="muted">新上传图片自动压缩保存，GIF 动图保留原样。编辑作品的阶段可以自由改时长（改大改小都行），改完点保存生效。图片查看器支持双指缩放、双击放大、单指拖拽、滚轮缩放。心情标签支持多选。一个作品可以同时加入多个计划。</div></div>';
   view.innerHTML=h;
   document.getElementById('addCat').onclick=addCategoryModal;
   document.getElementById('compressBtn').onclick=compressAllStoredImages;
