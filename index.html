@@ -237,7 +237,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
   <div class="iv-counter" id="ivCounter"></div>
 </div>
 <script>
-var IMG_MAX_SIDE=2400,IMG_QUALITY=0.92;
+var IMG_MAX_SIDE=1600,IMG_QUALITY=0.82;
 var MOOD_TAGS=['灵感爆棚','手感全开','稳扎慢练','卡住反复','惊喜超标','随便摸鱼','换法试笔','小小进步','爆肝冲刺','疲惫挂机','细节打磨','产能见底','画废崩溃','自我怀疑','摆烂自救','情绪重启'];
 var DB={categories:[],works:[],checkins:[],checkinLogs:[],plans:[]};
 var state={tab:'collections',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',statOffset:0,calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false,q:'',stars:[],_editWorkId:null,_editStages:null,checkinCalMonth:{},mood:null};
@@ -410,7 +410,7 @@ function bindTapAndDoubleTap(el,onSingle,onDouble){
   el.addEventListener('click',function(e){e.preventDefault();e.stopPropagation()});
 }
 
-/* ========== 图片查看器 ========== */
+/* ========== 图片查看器（支持缩放/拖拽/双击/滚轮）========== */
 var viewerScale=1,viewerX=0,viewerY=0;
 var ivPointers={},ivStartPos={};
 var ivDragStart={x:0,y:0};
@@ -568,7 +568,6 @@ function workMoodsHTML(w){
   return h+'</div>';
 }
 
-/* 时长计划自动分配（原有逻辑） */
 function getAutoAssignedWorks(plan,allWorks){
   var nodes=plan.nodes||[],assigned=nodes.map(function(n){return{node:n,works:[],totalMin:0,images:[],workMap:{}}}),nodeRanges=[],cursor=0;
   nodes.forEach(function(n){var hMin=(n.hours||0)*60;nodeRanges.push({start:cursor,end:cursor+hMin});cursor+=hMin});
@@ -592,24 +591,6 @@ function getAutoAssignedWorks(plan,allWorks){
     workCursor+=wTotal;
   });
   assigned.forEach(function(a){delete a.workMap});
-  return assigned;
-}
-
-/* 张数计划自动分配（新） */
-function getAutoAssignedWorksByCount(plan,allWorks){
-  var nodes=plan.nodes||[];
-  var targetWorks=allWorks.filter(function(w){return String(w.planId)===String(plan.id)});
-  targetWorks.sort(function(a,b){return (workCreatedAt(a)||0)-(workCreatedAt(b)||0)});
-  var assigned=nodes.map(function(n){return{node:n,works:[],images:[]}});
-  var idx=0;
-  targetWorks.forEach(function(w){
-    if(idx>=nodes.length)return;
-    var node=assigned[idx];
-    node.works.push(w);
-    var cover=workCover(w);
-    if(cover)node.images.push(cover);
-    if(node.works.length>=node.node.targetCount)idx++;
-  });
   return assigned;
 }
 
@@ -653,7 +634,7 @@ backEl.onclick=function(){
   var mr=document.getElementById('modalRoot');
   if(mr&&mr.innerHTML){closeModal();state._editWorkId=null;state._editStages=null;return}
   if(state.tab==='planDetail'){state.planId=null;state.nodeIdx=0;go('checkins')}
-  else if(state.workId){state.workId=null;state.workImgIdx=0;state._editWorkId=null;state._editStages=null;renderCategoryView()}
+  else if(state.workId){state.workId=null;state.workImgIdx=0;state._editWorkId=null;state._editStages=null;if(state.mood)renderMoodView();else renderCategoryView()}
   else if(state.mood){state.mood=null;go('collections')}
   else if(state.category){go('collections')}
 };
@@ -722,7 +703,7 @@ function renderWorkView(){
   }
   var ca=workCreatedAt(w);
   if(ca)h+='<div class="muted" style="margin-top:10px">添加于 '+fmtTs(ca)+'</div>';
-  if(w.planId){var p=DB.plans.find(function(x){return Number(x.id)===Number(w.planId)});if(p)h+='<div class="muted" style="margin-top:4px">计划：'+esc(p.name)+'（'+(p.type==='count'?'按张数':'按时长')+'）</div>'}
+  if(w.planId){var p=DB.plans.find(function(x){return Number(x.id)===Number(w.planId)});if(p)h+='<div class="muted" style="margin-top:4px">计划：'+esc(p.name)+'（按时间顺延）</div>'}
   if(w.note)h+='<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f2f2f5;white-space:pre-wrap">'+esc(w.note)+'</div>';
   h+='</div>';
   var imgList=[];
@@ -785,23 +766,23 @@ function addWorkModal(work,category){
   body+='</select><label class="fld">评分（必填）</label>'+starsHTML(rating,false).replace('class="stars"','class="stars" id="wf-stars"');
   body+='<label class="fld">心情标签（必选，至少一个，可多选）</label><div class="mood-grid" id="wf-moods"></div>';
   if(DB.plans.length){
-    body+='<label class="fld">加入计划（可选）</label><select id="wf-plan"><option value="">不加入计划</option>';
-    DB.plans.forEach(function(p){body+='<option value="'+p.id+'"'+(work&&String(work.planId)===String(p.id)?' selected':'')+'>'+esc(p.name)+'（'+(p.type==='count'?'按张数':'按时长')+'）</option>'});
+    body+='<label class="fld">加入计划（可选，按时间自动顺延到节点）</label><select id="wf-plan"><option value="">不加入计划</option>';
+    DB.plans.forEach(function(p){body+='<option value="'+p.id+'"'+(work&&String(work.planId)===String(p.id)?' selected':'')+'>'+esc(p.name)+'</option>'});
     body+='</select>';
   }
   body+='<label class="fld">作品备注（可选）</label><textarea id="wf-note" placeholder="整体想法、感受">'+(work?esc(work.note||''):'')+'</textarea>';
   if(editing&&editStages&&editStages.length){
-    body+='<div class="existing-stages"><div class="muted" style="margin-bottom:8px;font-weight:500">已有阶段（可编辑日期、换图、删除；删除后需点“保存”才生效）</div>';
+    body+='<div class="existing-stages"><div class="muted" style="margin-bottom:8px;font-weight:500">已有阶段（可改时长、改日期、换图、删除；改完点“保存”生效）</div>';
     editStages.forEach(function(stage,idx){
       var prevCum=idx===0?0:(editStages[idx-1].cumulative||0),dur=(stage.cumulative||0)-prevCum;
       body+='<div class="existing-stage-row"><div class="existing-stage-label">阶段 '+(idx+1)+' · '+fmtDur(dur)+' · 累计 '+fmtDur(stage.cumulative)+(stage.date?' · '+esc(stage.date):'')+(stage.note?' · '+esc(stage.note):'')+'</div>';
       if(stage.images&&stage.images.length){body+='<div class="existing-stage-thumbs">';stage.images.forEach(function(img,i){body+='<img src="'+img+'" data-stageimg="'+idx+'_'+i+'">'});body+='</div>'}
-      body+='<div class="stage-btn-row"><button class="btn o" id="stage-edit-btn-'+idx+'" type="button">编辑 / 换图 / 改日期</button><button class="btn o" id="stage-del-btn-'+idx+'" type="button" style="color:#c33">删除</button></div></div>';
+      body+='<div class="stage-btn-row"><button class="btn o" id="stage-edit-btn-'+idx+'" type="button">编辑 / 改时长 / 换图</button><button class="btn o" id="stage-del-btn-'+idx+'" type="button" style="color:#c33">删除</button></div></div>';
     });
     body+='</div>';
   }
   if(editing)body+='<div class="muted" style="margin:10px 0 8px;font-weight:500">添加新阶段（可选）</div>';
-  body+='<label class="fld">图片（可多选，自动压缩，长边最多'+IMG_MAX_SIDE+'px；已选图片可单独删除）</label><input type="file" id="wf-file" accept="image/*" multiple><div id="wf-prev" class="grid34" style="margin-top:10px"></div>';
+  body+='<label class="fld">图片（可多选，自动压缩，长边最多1600px；已选图片可单独删除）</label><input type="file" id="wf-file" accept="image/*" multiple><div id="wf-prev" class="grid34" style="margin-top:10px"></div>';
   body+='<label class="fld">'+(editing?'新阶段累计总时长':'累计总时长')+'</label>';
   body+='<div class="dur-row"><input type="number" id="wf-h" min="0" placeholder="时" value="'+defH+'"><span class="lbl">时</span><input type="number" id="wf-m" min="0" max="59" placeholder="分" value="'+defM+'"><span class="lbl">分</span></div>';
   body+='<label class="fld">日期（新阶段的日期）</label><input type="date" id="wf-date" value="'+today()+'">';
@@ -914,11 +895,12 @@ function showImgActionMenu(imgs,idx,onReplace,onDelete){
   inner.querySelector('#iamDelete').onclick=function(){close();if(!confirm('删除这张图片？'))return;onDelete();toast('已删除，记得点“保存”')};
 }
 
+/* ===== 编辑阶段：时长可改大改小 ===== */
 function openEditStageModal(stages,idx,work){
   var stage=stages[idx];if(!stage)return;
   var prevCum=idx===0?0:(stages[idx-1].cumulative||0),oldDur=(stage.cumulative||0)-prevCum;
   var oldH=Math.floor(oldDur/60),oldM=oldDur%60,editImages=(stage.images||[]).slice();
-  var body='<label class="fld">本阶段用时（不能小于原来，可留空不改）</label><div class="dur-row"><input type="number" id="edit-h" min="0" placeholder="时" value="'+oldH+'"><span class="lbl">时</span><input type="number" id="edit-m" min="0" max="59" placeholder="分" value="'+oldM+'"><span class="lbl">分</span></div><div class="muted" style="margin-top:-6px;margin-bottom:12px">原用时：'+fmtDur(oldDur)+'</div>';
+  var body='<label class="fld">本阶段用时（可改大改小，留空不改）</label><div class="dur-row"><input type="number" id="edit-h" min="0" placeholder="时" value="'+oldH+'"><span class="lbl">时</span><input type="number" id="edit-m" min="0" max="59" placeholder="分" value="'+oldM+'"><span class="lbl">分</span></div><div class="muted" style="margin-top:-6px;margin-bottom:12px">原用时：'+fmtDur(oldDur)+'</div>';
   body+='<label class="fld">日期（可修改，保存后生效）</label><input type="date" id="edit-date" value="'+(stage.date||today())+'">';
   body+='<label class="fld">备注</label><textarea id="edit-note">'+esc(stage.note||'')+'</textarea>';
   body+='<label class="fld">阶段图片（点图片可替换 / 删除 / 查看大图）</label><div id="edit-imgs-wrap"></div><label class="fld" style="margin-top:8px">追加图片（可多选，自动压缩）</label><input type="file" id="edit-add-img" accept="image/*" multiple>';
@@ -949,18 +931,25 @@ function openEditStageModal(stages,idx,work){
     try{e.target.value=''}catch(_){}
   };
   document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=function(){closeModal();setTimeout(function(){addWorkModal(work,work.category)},100)}});
+
+  /* 保存：允许改大改小 */
   document.getElementById('edit-save').onclick=function(){
     var hVal=document.getElementById('edit-h').value.trim(),mVal=document.getElementById('edit-m').value.trim();
     var newDate=document.getElementById('edit-date').value,newNote=document.getElementById('edit-note').value.trim();
     var same=(String(oldH)===hVal||(oldH===0&&hVal===''))&&(String(oldM)===mVal||(oldM===0&&mVal===''));
     if(!same&&(hVal!==''||mVal!=='')){
       var newDur=(parseInt(hVal)||0)*60+(parseInt(mVal)||0);
-      if(newDur<oldDur){toast('本阶段用时不能小于 '+fmtDur(oldDur));return}
-      var diff=newDur-oldDur;stage.cumulative=(stage.cumulative||0)+diff;
-      for(var i=idx+1;i<stages.length;i++)stages[i].cumulative=(stages[i].cumulative||0)+diff;
+      if(newDur<0){toast('时长不能为负');return}
+      var newCum=prevCum+newDur;
+      var delta=newCum-(stage.cumulative||0);
+      stage.cumulative=newCum;
+      for(var i=idx+1;i<stages.length;i++){
+        stages[i].cumulative=(stages[i].cumulative||0)+delta;
+      }
     }
     stage.date=newDate;stage.note=newNote;stage.images=editImages.slice();
-    toast('阶段已修改，点“保存”生效');closeModal();setTimeout(function(){addWorkModal(work,work.category)},100);
+    toast('阶段已修改，点“保存”生效');closeModal();
+    setTimeout(function(){addWorkModal(work,work.category)},100);
   };
 }
 
@@ -987,52 +976,23 @@ function editCheckinModal(id){
     c.name=n;idbPut('checkins',c).then(function(){closeModal();toast('已保存');renderCheckins()});
   };
 }
-
-/* 新建计划（支持时长/张数两种类型） */
 function addPlanModal(){
-  var body='<label class="fld">计划类型</label><select id="pl-type"><option value="hours">按时长（小时）</option><option value="count">按张数</option></select>';
-  body+='<label class="fld">计划名称</label><input id="pl-name" placeholder="如：120 小时人体练习 / 100 张速写">';
-  body+='<div id="pl-hours-wrap"><label class="fld">总目标时长（小时）</label><input type="number" id="pl-hours" placeholder="120"><label class="fld">节点数</label><input type="number" id="pl-count" value="3" min="1" placeholder="3"></div>';
-  body+='<div id="pl-count-wrap" class="hidden"><label class="fld">总张数（作品数）</label><input type="number" id="pl-total-count" placeholder="100"><label class="fld">节点数</label><input type="number" id="pl-node-count" value="3" min="1" placeholder="3"></div>';
+  var body='<label class="fld">计划名称</label><input id="pl-name" placeholder="如：120 小时人体练习"><label class="fld">总目标时长（小时）</label><input type="number" id="pl-hours" placeholder="120"><label class="fld">节点数</label><input type="number" id="pl-count" value="3" min="1" placeholder="3">';
   openModal('新建计划',body,'<button class="btn o" data-close>取消</button><button class="btn" id="pl-save">创建</button>');
-  var typeSel=document.getElementById('pl-type');
-  var hoursWrap=document.getElementById('pl-hours-wrap');
-  var countWrap=document.getElementById('pl-count-wrap');
-  typeSel.onchange=function(){
-    if(typeSel.value==='hours'){hoursWrap.classList.remove('hidden');countWrap.classList.add('hidden')}
-    else{hoursWrap.classList.add('hidden');countWrap.classList.remove('hidden')}
-  };
   document.getElementById('pl-save').onclick=function(){
-    var type=typeSel.value;
     var n=document.getElementById('pl-name').value.trim();
+    var h=parseFloat(document.getElementById('pl-hours').value)||0;
+    var c=parseInt(document.getElementById('pl-count').value)||0;
     if(!n){toast('请输入名称');return}
-    if(type==='hours'){
-      var h=parseFloat(document.getElementById('pl-hours').value)||0;
-      var c=parseInt(document.getElementById('pl-count').value)||0;
-      if(h<=0){toast('请输入总目标时长');return}
-      if(c<=0){toast('请输入节点数');return}
-      if(c>50){toast('节点数最多 50');return}
-      var each=h/c,ns=[];
-      for(var i=1;i<=c;i++)ns.push({id:uid(),name:'节点 '+i,hours:each,coverImg:null});
-      var p={id:uid(),type:'hours',name:n,totalHours:h,nodes:ns};DB.plans.push(p);
-      idbPut('plans',p).then(function(){closeModal();toast('已创建');renderCheckins()});
-    }else{
-      var total=parseInt(document.getElementById('pl-total-count').value)||0;
-      var nodeCount=parseInt(document.getElementById('pl-node-count').value)||0;
-      if(total<=0){toast('请输入总张数');return}
-      if(nodeCount<=0){toast('请输入节点数');return}
-      if(nodeCount>50){toast('节点数最多 50');return}
-      var base=Math.floor(total/nodeCount),rem=total%nodeCount,ns=[];
-      for(var i=1;i<=nodeCount;i++){
-        var tc=base+(i<=rem?1:0);
-        ns.push({id:uid(),name:'节点 '+i,targetCount:tc,coverImg:null});
-      }
-      var p={id:uid(),type:'count',name:n,totalCount:total,nodes:ns};DB.plans.push(p);
-      idbPut('plans',p).then(function(){closeModal();toast('已创建');renderCheckins()});
-    }
+    if(h<=0){toast('请输入总目标时长');return}
+    if(c<=0){toast('请输入节点数');return}
+    if(c>50){toast('节点数最多 50');return}
+    var each=h/c,ns=[];
+    for(var i=1;i<=c;i++)ns.push({id:uid(),name:'节点 '+i,hours:each,coverImg:null});
+    var p={id:uid(),name:n,totalHours:h,nodes:ns};DB.plans.push(p);
+    idbPut('plans',p).then(function(){closeModal();toast('已创建');renderCheckins()});
   };
 }
-
 function checkinCalendarHTML(id){
   var off=state.checkinCalMonth[id]||0,now=new Date();
   var base=new Date(now.getFullYear(),now.getMonth()-off,1),y=base.getFullYear(),m=base.getMonth();
@@ -1136,14 +1096,9 @@ function renderCheckins(){
   else{
     DB.plans.forEach(function(p){
       var works=DB.works.filter(function(w){return String(w.planId)===String(p.id)});
-      if(p.type==='count'){
-        var total=works.length, target=p.totalCount||0,pct=target?Math.min(100,total/target*100):0;
-        h+='<div data-plan="'+p.id+'" style="cursor:pointer;padding:10px 0;border-bottom:1px solid #f2f2f5"><div style="font-weight:600">'+esc(p.name)+' <span class="muted" style="font-size:11px">按张数</span></div><div class="muted" style="margin-top:4px">'+total+' / '+target+' 张 · '+works.length+' 个作品</div><div class="bar"><i style="width:'+pct+'%"></i></div></div>';
-      }else{
-        var totalH=works.reduce(function(s,w){return s+workTotal(w)},0);
-        var targetMin=(p.totalHours||0)*60,pct=targetMin?Math.min(100,totalH/targetMin*100):0;
-        h+='<div data-plan="'+p.id+'" style="cursor:pointer;padding:10px 0;border-bottom:1px solid #f2f2f5"><div style="font-weight:600">'+esc(p.name)+' <span class="muted" style="font-size:11px">按时长</span></div><div class="muted" style="margin-top:4px">'+fmtDur(totalH)+' / '+p.totalHours+' 小时 · '+works.length+' 个作品</div><div class="bar"><i style="width:'+pct+'%"></i></div></div>';
-      }
+      var total=works.reduce(function(s,w){return s+workTotal(w)},0);
+      var targetMin=(p.totalHours||0)*60,pct=targetMin?Math.min(100,total/targetMin*100):0;
+      h+='<div data-plan="'+p.id+'" style="cursor:pointer;padding:10px 0;border-bottom:1px solid #f2f2f5"><div style="font-weight:600">'+esc(p.name)+'</div><div class="muted" style="margin-top:4px">'+fmtDur(total)+' / '+p.totalHours+' 小时 · '+works.length+' 个作品</div><div class="bar"><i style="width:'+pct+'%"></i></div></div>';
     });
   }
   h+='</div></div>';view.innerHTML=h;
@@ -1179,121 +1134,56 @@ function renderPlanDetail(){
   var p=DB.plans.find(function(x){return Number(x.id)===Number(state.planId)});
   if(!p){go('checkins');return}
   titleEl.textContent=p.name;backEl.style.display='block';actionEl.style.display='none';
-  var allWorks=DB.works;
-
-  if(p.type==='count'){
-    /* 张数计划 */
-    var assigned=getAutoAssignedWorksByCount(p,allWorks);
-    var worksInPlan=allWorks.filter(function(w){return String(w.planId)===String(p.id)});
-    var total=worksInPlan.length,target=p.totalCount||0;
-    var pct=target?Math.min(100,total/target*100):0;
-    var h='<div class="card"><div class="muted">总进度</div><div class="big" style="margin-top:4px">'+total+' / '+target+' 张</div><div class="bar" style="height:10px;margin-top:8px"><i style="width:'+pct+'%"></i></div><div class="muted" style="margin-top:6px">'+pct.toFixed(1)+'% · 每个作品算一张，按创建时间顺序分配</div></div>';
-    var nodes=p.nodes||[];
-    if(nodes.length){
-      if(state.nodeIdx<0)state.nodeIdx=0;if(state.nodeIdx>nodes.length-1)state.nodeIdx=nodes.length-1;
-      var ca=assigned[state.nodeIdx],n=ca.node,nWorks=ca.works,imgs=ca.images;
-      var nTarget=n.targetCount||0,nDone=nWorks.length,nPct=nTarget?Math.min(100,nDone/nTarget*100):0;
-      h+='<div class="node-nav"><button class="nb" id="nodePrev"'+(state.nodeIdx===0?' disabled':'')+'>‹</button><span class="nlabel">'+esc(n.name)+'　'+(state.nodeIdx+1)+' / '+nodes.length+'</span><button class="nb" id="nodeNext"'+(state.nodeIdx===nodes.length-1?' disabled':'')+'>›</button></div>';
-      h+='<div class="node-card"><div class="node-head"><div><div class="node-name">'+esc(n.name)+'</div>';
-      h+='<div class="muted" style="margin-top:4px">'+nDone+' / '+nTarget+' 张 · 已完成 '+nPct.toFixed(0)+'%</div><div class="bar"><i style="width:'+nPct+'%"></i></div></div>';
-      if(imgs.length)h+='<button class="btn sm o" id="pickCoverBtn">选封面</button>';
+  var allWorks=DB.works,assigned=getAutoAssignedWorks(p,allWorks);
+  var total=allWorks.filter(function(w){return String(w.planId)===String(p.id)}).reduce(function(s,w){return s+workTotal(w)},0);
+  var targetMin=(p.totalHours||0)*60,pct=targetMin?Math.min(100,total/targetMin*100):0;
+  var h='<div class="card"><div class="muted">总进度</div><div class="big" style="margin-top:4px">'+fmtDur(total)+' / '+p.totalHours+' 小时</div><div class="bar" style="height:10px;margin-top:8px"><i style="width:'+pct+'%"></i></div><div class="muted" style="margin-top:6px">'+pct.toFixed(1)+'% · 作品按时间轴顺延，可跨多个节点</div></div>';
+  var nodes=p.nodes||[];
+  if(nodes.length){
+    if(state.nodeIdx<0)state.nodeIdx=0;if(state.nodeIdx>nodes.length-1)state.nodeIdx=nodes.length-1;
+    var ca2=assigned[state.nodeIdx],n=ca2.node,nWorks=ca2.works,nTotal=ca2.totalMin;
+    var nTarget=(n.hours||0)*60,nPct=nTarget?Math.min(100,nTotal/nTarget*100):0,imgs=ca2.images||[];
+    h+='<div class="node-nav"><button class="nb" id="nodePrev"'+(state.nodeIdx===0?' disabled':'')+'>‹</button><span class="nlabel">'+esc(n.name)+'　'+(state.nodeIdx+1)+' / '+nodes.length+'</span><button class="nb" id="nodeNext"'+(state.nodeIdx===nodes.length-1?' disabled':'')+'>›</button></div>';
+    h+='<div class="node-card"><div class="node-head"><div><div class="node-name">'+esc(n.name)+'</div>';
+    if(nTarget)h+='<div class="muted" style="margin-top:4px">'+fmtDur(nTotal)+' / '+n.hours.toFixed(1)+' 小时 · 涉及 '+nWorks.length+' 个作品</div><div class="bar"><i style="width:'+nPct+'%"></i></div>';
+    else h+='<div class="muted" style="margin-top:4px">累计 '+fmtDur(nTotal)+' · 涉及 '+nWorks.length+' 个作品</div>';
+    h+='</div>';
+    if(imgs.length)h+='<button class="btn sm o" id="pickCoverBtn">选封面</button>';
+    h+='</div>';
+    if(imgs.length){
+      var cover=(n.coverImg&&imgs.indexOf(n.coverImg)>=0)?n.coverImg:imgs[0];
+      h+='<div class="node-cover"><img src="'+cover+'" id="nodeBigImg"></div><div class="node-thumbs">';
+      imgs.forEach(function(img){h+='<img src="'+img+'" data-thumb="'+img+'"'+(img===cover?' style="outline:2px solid #1a1a1a;outline-offset:-2px"':'')+'>'});
       h+='</div>';
-      if(imgs.length){
-        var cover=(n.coverImg&&imgs.indexOf(n.coverImg)>=0)?n.coverImg:imgs[0];
-        h+='<div class="node-cover"><img src="'+cover+'" id="nodeBigImg"></div><div class="node-thumbs">';
-        imgs.forEach(function(img){h+='<img src="'+img+'" data-thumb="'+img+'"'+(img===cover?' style="outline:2px solid #1a1a1a;outline-offset:-2px"':'')+'>'});
-        h+='</div>';
-      }else h+='<div class="empty">这个节点还没有作品</div>';
-      h+='</div>';
-    }
-    h+='<button class="btn o" id="delPlan" style="margin-top:12px;color:#c33">删除计划</button>';
-    view.innerHTML=h;
-    var big=document.getElementById('nodeBigImg');
-    if(big)view.querySelectorAll('[data-thumb]').forEach(function(el){
-      el.onclick=function(e){e.stopPropagation();big.src=el.dataset.thumb;view.querySelectorAll('[data-thumb]').forEach(function(x){x.style.outline='none';x.style.outlineOffset=''});el.style.outline='2px solid #1a1a1a';el.style.outlineOffset='-2px'};
-    });
-    if(big)big.onclick=function(){openImageViewer(imgs,imgs.indexOf(big.src),false)};
-    var pv=document.getElementById('nodePrev'),nx=document.getElementById('nodeNext');
-    if(pv)pv.onclick=function(){if(state.nodeIdx>0){state.nodeIdx--;renderPlanDetail()}};
-    if(nx)nx.onclick=function(){if(state.nodeIdx<nodes.length-1){state.nodeIdx++;renderPlanDetail()}};
-    var pc=document.getElementById('pickCoverBtn');
-    if(pc)pc.onclick=function(e){e.stopPropagation();pickCoverCount(p,nodes[state.nodeIdx].id)};
-    document.getElementById('delPlan').onclick=function(){
-      if(!confirm('删除这个计划？相关作品不会被删除。'))return;
-      var updates=DB.works.filter(function(w){return String(w.planId)===String(state.planId)});
-      updates.forEach(function(w){w.planId=null});
-      var ps=updates.map(function(w){return idbPut('works',w)});
-      ps.push(idbDel('plans',state.planId));
-      Promise.all(ps).then(function(){DB.plans=DB.plans.filter(function(x){return Number(x.id)!==Number(state.planId)});toast('已删除');state.planId=null;go('checkins')});
-    };
-  }else{
-    /* 原有时长计划 */
-    var assigned=getAutoAssignedWorks(p,allWorks);
-    var total=allWorks.filter(function(w){return String(w.planId)===String(p.id)}).reduce(function(s,w){return s+workTotal(w)},0);
-    var targetMin=(p.totalHours||0)*60,pct=targetMin?Math.min(100,total/targetMin*100):0;
-    var h='<div class="card"><div class="muted">总进度</div><div class="big" style="margin-top:4px">'+fmtDur(total)+' / '+p.totalHours+' 小时</div><div class="bar" style="height:10px;margin-top:8px"><i style="width:'+pct+'%"></i></div><div class="muted" style="margin-top:6px">'+pct.toFixed(1)+'% · 作品按时间轴顺延，可跨多个节点</div></div>';
-    var nodes=p.nodes||[];
-    if(nodes.length){
-      if(state.nodeIdx<0)state.nodeIdx=0;if(state.nodeIdx>nodes.length-1)state.nodeIdx=nodes.length-1;
-      var ca2=assigned[state.nodeIdx],n=ca2.node,nWorks=ca2.works,nTotal=ca2.totalMin;
-      var nTarget=(n.hours||0)*60,nPct=nTarget?Math.min(100,nTotal/nTarget*100):0,imgs=ca2.images||[];
-      h+='<div class="node-nav"><button class="nb" id="nodePrev"'+(state.nodeIdx===0?' disabled':'')+'>‹</button><span class="nlabel">'+esc(n.name)+'　'+(state.nodeIdx+1)+' / '+nodes.length+'</span><button class="nb" id="nodeNext"'+(state.nodeIdx===nodes.length-1?' disabled':'')+'>›</button></div>';
-      h+='<div class="node-card"><div class="node-head"><div><div class="node-name">'+esc(n.name)+'</div>';
-      if(nTarget)h+='<div class="muted" style="margin-top:4px">'+fmtDur(nTotal)+' / '+n.hours.toFixed(1)+' 小时 · 涉及 '+nWorks.length+' 个作品</div><div class="bar"><i style="width:'+nPct+'%"></i></div>';
-      else h+='<div class="muted" style="margin-top:4px">累计 '+fmtDur(nTotal)+' · 涉及 '+nWorks.length+' 个作品</div>';
-      h+='</div>';
-      if(imgs.length)h+='<button class="btn sm o" id="pickCoverBtn">选封面</button>';
-      h+='</div>';
-      if(imgs.length){
-        var cover=(n.coverImg&&imgs.indexOf(n.coverImg)>=0)?n.coverImg:imgs[0];
-        h+='<div class="node-cover"><img src="'+cover+'" id="nodeBigImg"></div><div class="node-thumbs">';
-        imgs.forEach(function(img){h+='<img src="'+img+'" data-thumb="'+img+'"'+(img===cover?' style="outline:2px solid #1a1a1a;outline-offset:-2px"':'')+'>'});
-        h+='</div>';
-      }else h+='<div class="empty">这个节点还没有图片</div>';
-      h+='</div>';
-    }
-    h+='<button class="btn o" id="delPlan" style="margin-top:12px;color:#c33">删除计划</button>';
-    view.innerHTML=h;
-    var big=document.getElementById('nodeBigImg');
-    if(big)view.querySelectorAll('[data-thumb]').forEach(function(el){
-      el.onclick=function(e){e.stopPropagation();big.src=el.dataset.thumb;view.querySelectorAll('[data-thumb]').forEach(function(x){x.style.outline='none';x.style.outlineOffset=''});el.style.outline='2px solid #1a1a1a';el.style.outlineOffset='-2px'};
-    });
-    var pv=document.getElementById('nodePrev'),nx=document.getElementById('nodeNext');
-    if(pv)pv.onclick=function(){if(state.nodeIdx>0){state.nodeIdx--;renderPlanDetail()}};
-    if(nx)nx.onclick=function(){if(state.nodeIdx<nodes.length-1){state.nodeIdx++;renderPlanDetail()}};
-    var pc=document.getElementById('pickCoverBtn');
-    if(pc)pc.onclick=function(e){e.stopPropagation();pickCover(p,nodes[state.nodeIdx].id)};
-    document.getElementById('delPlan').onclick=function(){
-      if(!confirm('删除这个计划？相关作品不会被删除。'))return;
-      var updates=DB.works.filter(function(w){return String(w.planId)===String(state.planId)});
-      updates.forEach(function(w){w.planId=null});
-      var ps=updates.map(function(w){return idbPut('works',w)});
-      ps.push(idbDel('plans',state.planId));
-      Promise.all(ps).then(function(){DB.plans=DB.plans.filter(function(x){return Number(x.id)!==Number(state.planId)});toast('已删除');state.planId=null;go('checkins')});
-    };
+    }else h+='<div class="empty">这个节点还没有图片</div>';
+    h+='</div>';
   }
+  h+='<button class="btn o" id="delPlan" style="margin-top:12px;color:#c33">删除计划</button>';
+  view.innerHTML=h;
+  var big=document.getElementById('nodeBigImg');
+  if(big)view.querySelectorAll('[data-thumb]').forEach(function(el){
+    el.onclick=function(e){e.stopPropagation();big.src=el.dataset.thumb;view.querySelectorAll('[data-thumb]').forEach(function(x){x.style.outline='none';x.style.outlineOffset=''});el.style.outline='2px solid #1a1a1a';el.style.outlineOffset='-2px'};
+  });
+  var pv=document.getElementById('nodePrev'),nx=document.getElementById('nodeNext');
+  if(pv)pv.onclick=function(){if(state.nodeIdx>0){state.nodeIdx--;renderPlanDetail()}};
+  if(nx)nx.onclick=function(){if(state.nodeIdx<nodes.length-1){state.nodeIdx++;renderPlanDetail()}};
+  var pc=document.getElementById('pickCoverBtn');
+  if(pc)pc.onclick=function(e){e.stopPropagation();pickCover(p,nodes[state.nodeIdx].id)};
+  document.getElementById('delPlan').onclick=function(){
+    if(!confirm('删除这个计划？相关作品不会被删除。'))return;
+    var updates=DB.works.filter(function(w){return String(w.planId)===String(state.planId)});
+    updates.forEach(function(w){w.planId=null});
+    var ps=updates.map(function(w){return idbPut('works',w)});
+    ps.push(idbDel('plans',state.planId));
+    Promise.all(ps).then(function(){DB.plans=DB.plans.filter(function(x){return Number(x.id)!==Number(state.planId)});toast('已删除');state.planId=null;go('checkins')});
+  };
 }
-
-/* 时长计划选封面（原） */
 function pickCover(p,nodeId){
   var assigned=getAutoAssignedWorks(p,DB.works);
   var ta=assigned.find(function(a){return String(a.node.id)===String(nodeId)});
   if(!ta)return;
   var n=ta.node,imgs=ta.images||[];
   if(!imgs.length){toast('该节点还没有图片');return}
-  var h='<div class="pick-grid">';
-  imgs.forEach(function(img){h+='<div class="pcell'+(n.coverImg===img?' sel':'')+'" data-pick="'+img+'"><img src="'+img+'"></div>'});
-  openModal('选择封面',h+'</div>','<button class="btn o" data-close>取消</button>');
-  document.querySelectorAll('[data-pick]').forEach(function(el){el.onclick=function(){n.coverImg=el.dataset.pick;idbPut('plans',p).then(function(){closeModal();toast('已设置封面');renderPlanDetail()})}});
-}
-
-/* 张数计划选封面（新） */
-function pickCoverCount(p,nodeId){
-  var assigned=getAutoAssignedWorksByCount(p,DB.works);
-  var ta=assigned.find(function(a){return String(a.node.id)===String(nodeId)});
-  if(!ta)return;
-  var n=ta.node,imgs=ta.images||[];
-  if(!imgs.length){toast('该节点还没有作品封面');return}
   var h='<div class="pick-grid">';
   imgs.forEach(function(img){h+='<div class="pcell'+(n.coverImg===img?' sel':'')+'" data-pick="'+img+'"><img src="'+img+'"></div>'});
   openModal('选择封面',h+'</div>','<button class="btn o" data-close>取消</button>');
@@ -1481,7 +1371,7 @@ function renderSettings(){
   h+='<button class="btn o" id="expBtn">一键导出所有数据</button><button class="btn o" id="impBtn">一键导入数据</button>';
   var totalImgs=0;DB.works.forEach(function(w){totalImgs+=workImgCount(w)});
   h+='<div class="card"><h3>存储</h3><div class="muted">作品 '+DB.works.length+' 个 · 图片 '+totalImgs+' 张<br>使用 '+(idb?'IndexedDB':'内存（本次会话有效，退出后丢失）')+'<br>新图压缩：长边≤'+IMG_MAX_SIDE+'px，JPEG质量 '+Math.round(IMG_QUALITY*100)+'%</div></div>';
-  h+='<div class="card"><h3>说明</h3><div class="muted">新上传图片自动压缩保存，GIF 动图保留原样。编辑作品可以修改阶段日期。图片查看器支持双指缩放、双击放大、单指拖拽、滚轮缩放。心情标签支持多选，点击作品卡片上的标签可查看同标签所有作品。计划支持按时长和按张数两种模式，按张数模式下每个作品算一张，自动分配到节点。</div></div>';
+  h+='<div class="card"><h3>说明</h3><div class="muted">新上传图片自动压缩保存，GIF 动图保留原样。编辑作品的阶段可以自由改时长（改大改小都行），改完点保存生效。图片查看器支持双指缩放、双击放大、单指拖拽、滚轮缩放。心情标签支持多选，点击作品卡片上的标签可查看同标签所有作品。</div></div>';
   view.innerHTML=h;
   document.getElementById('addCat').onclick=addCategoryModal;
   document.getElementById('compressBtn').onclick=compressAllStoredImages;
@@ -1560,8 +1450,6 @@ try{go('collections')}catch(e){}
     DB.categories=r[0]||[];DB.works=r[1]||[];DB.checkins=r[2]||[];DB.checkinLogs=r[3]||[];DB.plans=r[4]||[];
     var st=(r[5]||[]).filter(function(x){return x.id==='todayBg'})[0];
     todayBgImg=st?st.img:null;
-    // 兼容旧计划：没有 type 的默认为 'hours'
-    DB.plans.forEach(function(p){if(!p.type)p.type='hours'});
     if(!DB.categories.length){
       var defs=['练习','创作','速写','长期作品'],ps=[];
       defs.forEach(function(n){var c={id:uid(),name:n};DB.categories.push(c);ps.push(idbPut('categories',c))});
