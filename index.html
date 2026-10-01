@@ -237,7 +237,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
   <div class="iv-counter" id="ivCounter"></div>
 </div>
 <script>
-var IMG_MAX_SIDE=1600,IMG_QUALITY=0.82;
+var IMG_MAX_SIDE=2400,IMG_QUALITY=0.92;
 var MOOD_TAGS=['灵感爆棚','手感全开','稳扎慢练','卡住反复','惊喜超标','随便摸鱼','换法试笔','小小进步','爆肝冲刺','疲惫挂机','细节打磨','产能见底','画废崩溃','自我怀疑','摆烂自救','情绪重启'];
 var DB={categories:[],works:[],checkins:[],checkinLogs:[],plans:[]};
 var state={tab:'collections',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',statOffset:0,calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false,q:'',stars:[],_editWorkId:null,_editStages:null,checkinCalMonth:{},mood:null};
@@ -256,7 +256,7 @@ function toast(m){var t=document.createElement('div');t.textContent=m;t.style.cs
 
 function bindDatePicker(el){
   if(!el)return;
-  el.addEventListener('click',function(){if(this.showPicker){try{this.showPicker()}catch(e){}}}); 
+  el.addEventListener('click',function(){if(this.showPicker){try{this.showPicker()}catch(e){}}});
   el.addEventListener('focus',function(){if(this.showPicker){try{this.showPicker()}catch(e){}}});
 }
 
@@ -801,7 +801,7 @@ function addWorkModal(work,category){
     body+='</div>';
   }
   if(editing)body+='<div class="muted" style="margin:10px 0 8px;font-weight:500">添加新阶段（可选）</div>';
-  body+='<label class="fld">图片（可多选，自动压缩，长边最多1600px；已选图片可单独删除）</label><input type="file" id="wf-file" accept="image/*" multiple><div id="wf-prev" class="grid34" style="margin-top:10px"></div>';
+  body+='<label class="fld">图片（可多选，自动压缩，长边最多'+IMG_MAX_SIDE+'px；已选图片可单独删除）</label><input type="file" id="wf-file" accept="image/*" multiple><div id="wf-prev" class="grid34" style="margin-top:10px"></div>';
   body+='<label class="fld">'+(editing?'新阶段累计总时长':'累计总时长')+'</label>';
   body+='<div class="dur-row"><input type="number" id="wf-h" min="0" placeholder="时" value="'+defH+'"><span class="lbl">时</span><input type="number" id="wf-m" min="0" max="59" placeholder="分" value="'+defM+'"><span class="lbl">分</span></div>';
   body+='<label class="fld">日期（新阶段的日期）</label><input type="date" id="wf-date" value="'+today()+'">';
