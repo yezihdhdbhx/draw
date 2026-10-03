@@ -444,7 +444,6 @@ function bindTapAndDoubleTap(el,onSingle,onDouble){
   el.addEventListener('click',function(e){e.preventDefault();e.stopPropagation()});
 }
 
-/* ===== 全局：让任意缩略图单击即可查看大图（不干扰卡片本身点击） ===== */
 function bindThumbViewer(el,getImgs,getIdx){
   if(!el)return;
   el.style.cursor='zoom-in';
@@ -606,6 +605,10 @@ function workCreatedAt(w){
   if(w.createdAt)return w.createdAt;
   return null;
 }
+function workOriginalCreatedAt(w){
+  if(w.createdAt)return w.createdAt;
+  return workCreatedAt(w);
+}
 function getAllWorkImages(w){var a=[];(w.stages||[]).forEach(function(s){(s.images||[]).forEach(function(im){a.push(im)})});return a}
 function workMoodsHTML(w){
   if(!w.moods||!w.moods.length)return '';
@@ -614,12 +617,17 @@ function workMoodsHTML(w){
   return h+'</div>';
 }
 
+/* ===== 节点分配：时间计划走时间轴，张数计划按张数；排序用原始创建时间 ===== */
 function getAutoAssignedWorks(plan,allWorks){
   var nodes=plan.nodes||[];
   var assigned=nodes.map(function(n){return{node:n,works:[],totalMin:0,images:[],workMap:{}}});
   if(!nodes.length)return assigned;
   var targetWorks=planWorks(plan);
-  targetWorks.sort(function(a,b){return (workCreatedAt(a)||0)-(workCreatedAt(b)||0)});
+  targetWorks.sort(function(a,b){
+    var ta=workOriginalCreatedAt(a)||0;
+    var tb=workOriginalCreatedAt(b)||0;
+    return ta-tb;
+  });
 
   if(isCountBased(plan)){
     var per=getPerNodeCount(plan);
@@ -701,6 +709,7 @@ backEl.onclick=function(){
   else if(state.category){go('collections')}
 };
 
+/* ===== 画集：分类卡片整体点开分类，封面图不单独响应点击 ===== */
 function renderCollections(){
   titleEl.textContent='画集';actionEl.style.display='block';actionEl.onclick=addCategoryModal;
   backEl.style.display='none';state.category=null;state.workId=null;state.mood=null;
@@ -710,21 +719,11 @@ function renderCollections(){
     var works=DB.works.filter(function(w){return w.category===c.name});
     var total=works.reduce(function(s,w){return s+workTotal(w)},0),cover=null;
     for(var i=works.length-1;i>=0;i--){cover=workCover(works[i]);if(cover)break}
-    h+='<div class="cat-tile" data-cat="'+esc(c.name)+'"><div class="thumb" data-cover="'+(cover?'1':'0')+'">'+(cover?'<img src="'+cover+'">':'')+'</div><div class="meta"><div class="nm">'+esc(c.name)+'</div><div class="tm">'+works.length+' 作品 · '+fmtDur(total)+'</div></div></div>';
+    h+='<div class="cat-tile" data-cat="'+esc(c.name)+'"><div class="thumb">'+(cover?'<img src="'+cover+'">':'')+'</div><div class="meta"><div class="nm">'+esc(c.name)+'</div><div class="tm">'+works.length+' 作品 · '+fmtDur(total)+'</div></div></div>';
   });
   view.innerHTML=h+'</div>';
   view.querySelectorAll('[data-cat]').forEach(function(el){
-    var catName=el.dataset.cat;
-    el.onclick=function(){openCategory(catName)};
-    var thumb=el.querySelector('.thumb');
-    if(thumb&&thumb.dataset.cover==='1'){
-      bindThumbViewer(thumb,function(){
-        var cworks=DB.works.filter(function(w){return w.category===catName});
-        var imgs=[];
-        cworks.forEach(function(w){var cov=workCover(w);if(cov)imgs.push(cov)});
-        return imgs;
-      },function(){return 0});
-    }
+    el.onclick=function(){openCategory(el.dataset.cat)};
   });
 }
 function openCategory(name){state.category=name;state.workId=null;state.workImgIdx=0;state.mood=null;renderCategoryView()}
@@ -977,10 +976,7 @@ function addWorkModal(work,category){
       work.planIds=selectedPlanIds.slice();
       work.planId=selectedPlanIds[0]||null;
       work.stages=editStages.map(function(s){return{images:(s.images||[]).slice(),cumulative:s.cumulative,date:s.date,note:s.note}});
-      if(work.stages.length&&work.stages[0].date){
-        var t0=new Date(work.stages[0].date+'T00:00:00').getTime();
-        if(!isNaN(t0))work.createdAt=t0;
-      }
+      /* 不再同步 createdAt，节点排序永远按原始创建时间 */
       if(newFiles.length){
         var cum=(parseInt(document.getElementById('wf-h').value)||0)*60+(parseInt(document.getElementById('wf-m').value)||0);
         var date=document.getElementById('wf-date').value||today(),snote=document.getElementById('wf-snote').value.trim();
@@ -994,8 +990,7 @@ function addWorkModal(work,category){
       var cum2=(parseInt(document.getElementById('wf-h').value)||0)*60+(parseInt(document.getElementById('wf-m').value)||0);
       if(cum2<=0){toast('请输入累计时长');return}
       var date2=document.getElementById('wf-date').value||today(),snote2=document.getElementById('wf-snote').value.trim();
-      var createdTs=new Date(date2+'T00:00:00').getTime();
-      if(isNaN(createdTs))createdTs=Date.now();
+      var createdTs=Date.now();
       var nw={id:uid(),category:cat,rating:rating,planId:selectedPlanIds[0]||null,planIds:selectedPlanIds.slice(),note:note,createdAt:createdTs,moods:selectedMoods.slice(),stages:[{images:newFiles.slice(),cumulative:cum2,date:date2,note:snote2}]};
       DB.works.push(nw);
       idbPut('works',nw).then(doSave);
@@ -1395,8 +1390,7 @@ function renderPlanDetail(){
   if(!p.archived)h+='<button class="btn o" id="delPlan" style="margin-top:12px;color:#c33">删除计划</button>';
   view.innerHTML=h;
   var big=document.getElementById('nodeBigImg');
-  var nodeImgs=imgs||[];
-  if(big)big.onclick=function(){openImageViewer(nodeImgs,0,false)};
+  if(big)big.onclick=function(){openImageViewer(imgs,0,false)};
   if(imgs&&imgs.length){
     view.querySelectorAll('[data-thumb]').forEach(function(el){
       el.onclick=function(e){
@@ -1604,11 +1598,81 @@ function renderImageCalendar(){
     var dur=info&&info.dur>0?info.dur:0,wk=info&&info.works>0?info.works:0,has=dur>0||wk>0;
     cells+='<div class="d'+(has?' has':'')+(ds===td?' today':'')+'" data-calday="'+ds+'"><span class="n">'+(wk>0?wk:'')+'</span><span class="dd">'+day+'</span><span class="dur">'+(dur>0?fmtDurCal(dur):'')+'</span></div>';
   }
-  return '<div class="card cal-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><button class="btn sm o" data-cal="prev">‹</button><strong>'+y+'年'+(m+1)+'月</strong><button class="btn sm o" data-cal="next">›</button></div><div class="cal">'+cells+'</div></div>';
+  return '<div class="card cal-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+    +'<button class="btn sm o" data-cal="prev">‹</button>'
+    +'<button class="btn sm o" id="calTitleBtn" style="flex:1;font-weight:600;font-size:14px;margin:0 8px;background:#f0f0f3;border:none;color:#1a1a1a">'+y+'年'+(m+1)+'月 ▾</button>'
+    +'<button class="btn sm o" data-cal="next">›</button>'
+    +'</div><div class="cal">'+cells+'</div></div>';
 }
 function bindCalendarEvents(){
   view.querySelectorAll('[data-cal]').forEach(function(b){b.onclick=function(){var d=new Date(state.calMonth);d.setMonth(d.getMonth()+(b.dataset.cal==='prev'?-1:1));state.calMonth=d;renderStats()}});
   view.querySelectorAll('[data-calday]').forEach(function(el){el.onclick=function(){showDayImages(el.dataset.calday)}});
+  var tb=document.getElementById('calTitleBtn');
+  if(tb)tb.onclick=function(e){e.stopPropagation();openCalPicker();};
+}
+function openCalPicker(){
+  var d=state.calMonth;
+  var y=d.getFullYear(),m=d.getMonth(),curDay=d.getDate();
+  var py=y,pm=m,pd=curDay;
+  var h='<div>';
+  h+='<div style="display:flex;justify-content:center;align-items:center;gap:16px;margin-bottom:16px">';
+  h+='<button class="btn sm o" id="cpYPrev" type="button" style="width:44px;height:40px;padding:0;font-size:20px">‹</button>';
+  h+='<span style="font-size:18px;font-weight:700" id="cpYearLabel">'+py+' 年</span>';
+  h+='<button class="btn sm o" id="cpYNext" type="button" style="width:44px;height:40px;padding:0;font-size:20px">›</button>';
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:16px" id="cpMonths">';
+  for(var i=0;i<12;i++)h+='<button type="button" class="chip'+(i===pm?' on':'')+'" data-cpm="'+i+'" style="padding:8px 0;font-size:13px">'+(i+1)+'月</button>';
+  h+='</div>';
+  h+='<div class="muted" style="margin-bottom:6px;font-weight:500">选择具体日期</div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px" id="cpDays"></div>';
+  h+='</div>';
+  openModal('选择日期',h,'<button class="btn o" data-close>关闭</button>');
+
+  function renderDays(){
+    var daysInMonth=new Date(py,pm+1,0).getDate();
+    var dh='';
+    ['一','二','三','四','五','六','日'].forEach(function(w){dh+='<div style="text-align:center;font-size:11px;color:#aaa;padding:4px 0">'+w+'</div>'});
+    var sp=(new Date(py,pm,1).getDay()+6)%7;
+    for(var i=0;i<sp;i++)dh+='<div></div>';
+    var todayStr=today();
+    for(var dd=1;dd<=daysInMonth;dd++){
+      var isSel=(dd===pd && pm===m && py===y);
+      var ds=py+'-'+pad(pm+1)+'-'+pad(dd);
+      var isToday=(ds===todayStr);
+      var cls='chip'+(isSel?' on':'');
+      var style='padding:7px 0;font-size:13px;border-radius:8px;'+(isToday&&!isSel?'border-color:#999;':'');
+      dh+='<button type="button" class="'+cls+'" data-cpd="'+dd+'" style="'+style+'">'+dd+'</button>';
+    }
+    var el=document.getElementById('cpDays');
+    if(!el)return;
+    el.innerHTML=dh;
+    el.querySelectorAll('[data-cpd]').forEach(function(b){
+      b.onclick=function(){
+        var day=Number(b.dataset.cpd);
+        state.calMonth=new Date(py,pm,day);
+        closeModal();
+        renderStats();
+      };
+    });
+  }
+  function syncUI(){
+    var yl=document.getElementById('cpYearLabel');
+    if(yl)yl.textContent=py+' 年';
+    var box=document.getElementById('cpMonths');
+    if(box)box.querySelectorAll('[data-cpm]').forEach(function(b){
+      b.classList.toggle('on',Number(b.dataset.cpm)===pm);
+    });
+  }
+  document.getElementById('cpYPrev').onclick=function(){py--;pd=Math.min(pd,new Date(py,pm+1,0).getDate());syncUI();renderDays();};
+  document.getElementById('cpYNext').onclick=function(){py++;pd=Math.min(pd,new Date(py,pm+1,0).getDate());syncUI();renderDays();};
+  document.querySelectorAll('[data-cpm]').forEach(function(b){
+    b.onclick=function(){
+      pm=Number(b.dataset.cpm);
+      pd=Math.min(pd,new Date(py,pm+1,0).getDate());
+      syncUI();renderDays();
+    };
+  });
+  renderDays();
 }
 function showDayImages(ds){
   var imgs=[],totalMin=0;
@@ -1648,7 +1712,7 @@ function renderSettings(){
   h+='<button class="btn o" id="expBtn">一键导出所有数据</button><button class="btn o" id="impBtn">一键导入数据</button>';
   var totalImgs=0;DB.works.forEach(function(w){totalImgs+=workImgCount(w)});
   h+='<div class="card"><h3>存储</h3><div class="muted">作品 '+DB.works.length+' 个 · 图片 '+totalImgs+' 张<br>使用 '+(idb?'IndexedDB':'内存（本次会话有效，退出后丢失）')+'<br>新图压缩：长边≤'+IMG_MAX_SIDE+'px，JPEG质量 '+Math.round(IMG_QUALITY*100)+'%</div></div>';
-  h+='<div class="card"><h3>说明</h3><div class="muted">所有图片均可点开查看大图，支持双指缩放、双击放大、拖拽、滚轮缩放。计划分两种：按时间（作品按时间轴顺延，可跨节点）和按张数（每 N 张一个节点，按加入顺序分配）。一个作品可以同时加入多个计划。计划完成后自动归档。月统计按周展示。</div></div>';
+  h+='<div class="card"><h3>说明</h3><div class="muted">所有图片均可点开查看大图，支持双指缩放、双击放大、拖拽、滚轮缩放。计划分两种：按时间（作品按时间轴顺延，可跨节点）和按张数（每 N 张一个节点，按加入顺序分配）。一个作品可以同时加入多个计划。计划完成后自动归档。月统计按周展示。统计页的图片日历可点击标题选择年月日。</div></div>';
   view.innerHTML=h;
   document.getElementById('addCat').onclick=addCategoryModal;
   document.getElementById('compressBtn').onclick=compressAllStoredImages;
