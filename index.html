@@ -150,7 +150,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .node-name{font-weight:600}
 .node-thumbs{display:flex;gap:6px;overflow-x:auto;padding-top:10px;margin-top:10px;border-top:1px solid #f2f2f5}
 .node-thumbs img{width:70px;height:70px;object-fit:cover;border-radius:8px;flex-shrink:0;background:#d8d8dd;cursor:pointer}
-.node-cover{aspect-ratio:1;margin-top:10px;border-radius:8px;overflow:hidden;background:#d8d8dd;cursor:pointer}
+.node-cover{aspect-ratio:1;margin-top:10px;border-radius:8px;overflow:hidden;background:#d8d8dd;cursor:zoom-in}
 .node-cover img{width:100%;height:100%;object-fit:cover;background:#d8d8dd;display:block}
 .node-nav{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .node-nav .nb{border:none;background:#f0f0f3;color:#1a1a1a;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;flex-shrink:0;line-height:1}
@@ -181,7 +181,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .period-nav .plabel{flex:1;text-align:center;font-size:13px;color:#666;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .period-nav .pb{width:40px;height:40px;border:1px solid #ddd;background:#fff;color:#1a1a1a;border-radius:10px;font-size:20px;cursor:pointer;font-family:inherit;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
 .period-nav .pb:disabled{opacity:.3;cursor:default}.period-nav .pb:active:not(:disabled){opacity:.7}
-.newthumb{position:relative;aspect-ratio:3/4;background:#d8d8dd;border-radius:8px;overflow:hidden;cursor:pointer}
+.newthumb{position:relative;aspect-ratio:3/4;background:#d8d8dd;border-radius:8px;overflow:hidden;cursor:zoom-in}
 .newthumb img{width:100%;height:100%;object-fit:cover;display:block}
 .newthumb .rm{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;z-index:2}
 .edit-stage-imgs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
@@ -915,7 +915,6 @@ function addWorkModal(work,category){
     });
   }
   bindDatePicker(document.getElementById('wf-date'));
-  /* 已有阶段缩略图 → 单击查看大图 */
   document.querySelectorAll('[data-stageimg]').forEach(function(el){
     el.onclick=function(e){
       e.stopPropagation();
@@ -948,7 +947,6 @@ function addWorkModal(work,category){
       p.appendChild(d);
     });
     p.querySelectorAll('[data-rm]').forEach(function(b){b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();newFiles.splice(Number(b.dataset.rm),1);renderNewPreview()}});
-    /* 新阶段预览缩略图单击查看大图 */
     p.querySelectorAll('.newthumb img').forEach(function(img){
       img.addEventListener('click',function(e){
         e.stopPropagation();
@@ -1044,9 +1042,7 @@ function openEditStageModal(stages,idx,work){
       h+='</div>';wrap.innerHTML=h;
       wrap.querySelectorAll('[data-esi]').forEach(function(el){
         var i=Number(el.dataset.esi);
-        /* 单击查看大图 */
         el.onclick=function(e){e.stopPropagation();openImageViewer(editImages,i,false)};
-        /* 长按弹操作菜单（替换/删除） */
         var pressTimer=null,longFired=false;
         el.addEventListener('pointerdown',function(e){
           longFired=false;
@@ -1366,10 +1362,12 @@ function renderPlanDetail(){
   }
   h+='</div>';
   var nodes=p.nodes||[];
+  var imgs=[];
   if(nodes.length){
     if(state.nodeIdx<0)state.nodeIdx=0;if(state.nodeIdx>nodes.length-1)state.nodeIdx=nodes.length-1;
     var ca2=assigned[state.nodeIdx],n=ca2.node,nWorks=ca2.works;
-    var nTotal=ca2.totalMin,imgs=ca2.images||[];
+    var nTotal=ca2.totalMin;
+    imgs=ca2.images||[];
     var nTarget,nPct,nLabel;
     if(isCount){
       nTarget=n.count||getPerNodeCount(p);
@@ -1388,7 +1386,7 @@ function renderPlanDetail(){
     h+='</div>';
     if(imgs.length){
       var cover=(n.coverImg&&imgs.indexOf(n.coverImg)>=0)?n.coverImg:imgs[0];
-      h+='<div class="node-cover" id="nodeBigImgWrap"><img src="'+cover+'" id="nodeBigImg" data-coveridx="0"></div><div class="node-thumbs">';
+      h+='<div class="node-cover"><img src="'+cover+'" id="nodeBigImg"></div><div class="node-thumbs">';
       imgs.forEach(function(img,i){h+='<img src="'+img+'" data-thumb="'+img+'" data-tidx="'+i+'"'+(img===cover?' style="outline:2px solid #1a1a1a;outline-offset:-2px"':'')+'>'});
       h+='</div>';
     }else h+='<div class="empty">这个节点还没有图片</div>';
@@ -1397,22 +1395,14 @@ function renderPlanDetail(){
   if(!p.archived)h+='<button class="btn o" id="delPlan" style="margin-top:12px;color:#c33">删除计划</button>';
   view.innerHTML=h;
   var big=document.getElementById('nodeBigImg');
-  /* 节点大图：单击查看大图 */
-  if(big&&imgs2.length===0){}
   var nodeImgs=imgs||[];
-  if(big)bindThumbViewer(big,function(){return nodeImgs},function(){
-    var idx=Number(big.dataset.coveridx)||0;
-    for(var i=0;i<nodeImgs.length;i++){if(nodeImgs[i]===big.src)return i;}
-    return idx;
-  });
-  /* 缩略图：单击查看大图；点击同时切换大图 */
+  if(big)big.onclick=function(){openImageViewer(nodeImgs,0,false)};
   if(imgs&&imgs.length){
     view.querySelectorAll('[data-thumb]').forEach(function(el){
       el.onclick=function(e){
         e.stopPropagation();
         var i=Number(el.dataset.tidx)||0;
-        big.src=el.dataset.thumb;
-        big.dataset.coveridx=i;
+        if(big){big.src=el.dataset.thumb;}
         view.querySelectorAll('[data-thumb]').forEach(function(x){x.style.outline='none';x.style.outlineOffset=''});
         el.style.outline='2px solid #1a1a1a';el.style.outlineOffset='-2px';
         openImageViewer(imgs,i,false);
