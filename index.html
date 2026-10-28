@@ -72,7 +72,7 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .cat-tile .meta,.work-tile .meta{padding:8px 10px}
 .cat-tile .nm{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cat-tile .tm,.work-tile .tm{font-size:11px;color:#999;margin-top:2px}
-.work-tile .dt{font-size:11px;color:#bbb;margin-top:2px}
+.work-tile .dt{font-size:11px;color:#bbb;margin-top:2px;font-variant-numeric:tabular-nums}
 .work-moods{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
 .work-mood{display:inline-block;padding:1px 7px;border-radius:9px;background:#f0f0f3;color:#666;font-size:10px;cursor:pointer;line-height:1.5;white-space:nowrap}
 .work-mood:active{background:#e2e2e8}
@@ -81,9 +81,9 @@ body{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 a
 .cal .w{text-align:center;font-size:11px;color:#aaa;padding:6px 0}
 .cal .d{aspect-ratio:1/1.12;border-radius:8px;background:#f7f8fa;display:flex;flex-direction:column;align-items:center;justify-content:space-between;font-size:13px;border:1px solid transparent;cursor:pointer;position:relative;padding:4px 1px 2px;overflow:hidden}
 .cal .d.has{background:#1a1a1a;color:#fff;font-weight:600}
-.cal .d.today{border-color:#7a82a8;background:#eef0ff}
-.cal .d.today .dd{color:#5a6288}
-.cal .d.has.today{border-color:#7a82a8;box-shadow:inset 0 0 0 2px #7a82a8}
+.cal .d.today{border-color:#3d4468;background:#5a6288}
+.cal .d.today .dd{color:#fff}
+.cal .d.has.today{background:#5a6288;border-color:#3d4468;box-shadow:inset 0 0 0 2px #a8b0d0}
 .cal .d.has.today .dd{color:#fff}
 .cal .d.future{opacity:.35}
 .cal .d.has-note::after{content:'';position:absolute;bottom:3px;right:3px;width:6px;height:6px;border-radius:50%;background:#f5a623;box-shadow:0 0 0 1.5px rgba(255,255,255,.55)}
@@ -204,8 +204,6 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .iv-counter{position:absolute;bottom:28px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;background:rgba(0,0,0,.55);padding:6px 14px;border-radius:14px;z-index:2}
 .arch-tag{display:inline-block;padding:2px 8px;border-radius:10px;background:#e8e8ee;color:#666;font-size:11px;margin-left:6px;font-weight:500}
 .type-tag{display:inline-block;padding:1px 7px;border-radius:8px;background:#eef0ff;color:#7a82a8;font-size:10px;margin-left:6px;font-weight:500}
-
-/* 计划卡片 / 详情 */
 .plan-item{padding:12px 0;border-bottom:1px solid #f2f2f5;cursor:pointer}
 .plan-item:last-child{border-bottom:none}
 .plan-item.archived{opacity:.72}
@@ -220,11 +218,8 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 .pd-num{font-size:22px;font-weight:700;color:#1a1a1a;line-height:1.2}
 .pd-num small{font-size:12px;font-weight:500;color:#999;margin-left:3px}
 .pd-sub{font-size:12px;color:#888;margin-top:5px;line-height:1.6}
-
-/* 图表下方大字 */
 .chart-detail{margin-top:10px;text-align:center;font-size:20px;font-weight:700;color:#1a1a1a;min-height:26px;line-height:1.3;letter-spacing:.5px}
 .chart-detail:empty::after{content:'点击图表上的日期查看当天具体时长';font-size:12px;font-weight:400;color:#bbb;letter-spacing:0}
-
 #bootErr{position:fixed;inset:0;background:#fff;z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center;font-family:sans-serif}
 #bootErr h2{margin:0 0 12px;font-size:17px;color:#c33}
 #bootErr .msg{color:#666;font-size:14px;line-height:1.6;margin-bottom:18px;word-break:break-all;max-width:90%}
@@ -280,11 +275,30 @@ function uid(){return Date.now()+Math.floor(Math.random()*100000)}
 function pad(n){return String(n).padStart(2,'0')}
 function today(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
 function fmtDate(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
-function fmtTs(ts){var d=new Date(ts);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())}
+function fmtTs(ts){
+  var d=new Date(ts);
+  if(isNaN(d.getTime()))return '';
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+}
 function fmtDur(m){m=Math.round(m||0);if(m<60)return m+'分';var h=Math.floor(m/60),mm=m%60;return mm?h+'时'+mm+'分':h+'时'}
 function fmtDurCal(m){m=Math.round(m||0);if(m<60)return m+'min';var h=Math.floor(m/60),mm=m%60;return mm?h+'h'+mm+'min':h+'h'}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function toast(m){var t=document.createElement('div');t.textContent=m;t.style.cssText='position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:9999';document.body.appendChild(t);setTimeout(function(){t.remove()},1600)}
+
+/* ===== 作品创建时间（24小时制精确到分） ===== */
+function workCreatedTs(w){
+  if(!w)return null;
+  if(w.createdAt){
+    var d=new Date(w.createdAt);
+    if(!isNaN(d.getTime()))return w.createdAt;
+  }
+  return workCreatedAt(w);
+}
+function fmtWorkCreated(w){
+  var ts=workCreatedTs(w);
+  if(!ts)return '';
+  return fmtTs(ts);
+}
 
 function getPlanIds(w){if(!w)return[];if(w.planIds&&Array.isArray(w.planIds)&&w.planIds.length)return w.planIds;if(w.planId)return[w.planId];return[]}
 function isCountBased(p){return p&&p.planType==='count'}
@@ -303,7 +317,6 @@ function planWorks(plan){
 }
 function planTotalMinutes(plan){return planWorks(plan).reduce(function(s,w){return s+workTotal(w)},0)}
 
-/* ===== 计划内图片的首末时间与历时天数（24小时制） ===== */
 function stageTimeStr(w,s){
   var date=(s&&s.date)||'';
   if(!date)return '';
@@ -676,7 +689,6 @@ function workMoodsHTML(w){
   return h+'</div>';
 }
 
-/* ===== 节点分配：时间计划走时间轴，张数计划按张数；排序用原始创建时间 ===== */
 function getAutoAssignedWorks(plan,allWorks){
   var nodes=plan.nodes||[];
   var assigned=nodes.map(function(n){return{node:n,works:[],totalMin:0,images:[],workMap:{}}});
@@ -768,7 +780,6 @@ backEl.onclick=function(){
   else if(state.category){go('collections')}
 };
 
-/* ===== 画集：分类卡片整体点开分类，封面图不单独响应点击 ===== */
 function renderCollections(){
   titleEl.textContent='画集';actionEl.style.display='block';actionEl.onclick=addCategoryModal;
   backEl.style.display='none';state.category=null;state.workId=null;state.mood=null;
@@ -796,8 +807,8 @@ function renderCategoryView(){
   if(!works.length){view.innerHTML=h+'<div class="empty">还没有作品<br>点右上角 ＋ 添加</div>';return}
   h+='<div class="grid11">';
   works.forEach(function(w){
-    var cover=workCover(w),ca=workCreatedAt(w);
-    h+='<div class="work-tile" data-work="'+w.id+'"><div class="thumb" data-cover="'+(cover?'1':'0')+'">'+(cover?'<img src="'+cover+'">':'')+'</div><div class="meta">'+starsHTML(w.rating||0,true)+workMoodsHTML(w)+'<div class="tm">'+fmtDur(workTotal(w))+'</div>'+(ca?'<div class="dt">'+fmtTs(ca)+'</div>':'')+'</div></div>';
+    var cover=workCover(w),ct=fmtWorkCreated(w);
+    h+='<div class="work-tile" data-work="'+w.id+'"><div class="thumb" data-cover="'+(cover?'1':'0')+'">'+(cover?'<img src="'+cover+'">':'')+'</div><div class="meta">'+starsHTML(w.rating||0,true)+workMoodsHTML(w)+'<div class="tm">'+fmtDur(workTotal(w))+'</div>'+(ct?'<div class="dt">添加 '+esc(ct)+'</div>':'')+'</div></div>';
   });
   view.innerHTML=h+'</div>';
   view.querySelectorAll('[data-work]').forEach(function(el){
@@ -824,8 +835,8 @@ function renderMoodView(){
   if(!works.length){view.innerHTML=h+'<div class="empty">没有作品</div>';return}
   h+='<div class="grid11">';
   works.forEach(function(w){
-    var cover=workCover(w),ca=workCreatedAt(w);
-    h+='<div class="work-tile" data-work="'+w.id+'"><div class="thumb" data-cover="'+(cover?'1':'0')+'">'+(cover?'<img src="'+cover+'">':'')+'</div><div class="meta">'+starsHTML(w.rating||0,true)+workMoodsHTML(w)+'<div class="tm">'+fmtDur(workTotal(w))+'</div>'+(ca?'<div class="dt">'+fmtTs(ca)+'</div>':'')+'</div></div>';
+    var cover=workCover(w),ct=fmtWorkCreated(w);
+    h+='<div class="work-tile" data-work="'+w.id+'"><div class="thumb" data-cover="'+(cover?'1':'0')+'">'+(cover?'<img src="'+cover+'">':'')+'</div><div class="meta">'+starsHTML(w.rating||0,true)+workMoodsHTML(w)+'<div class="tm">'+fmtDur(workTotal(w))+'</div>'+(ct?'<div class="dt">添加 '+esc(ct)+'</div>':'')+'</div></div>';
   });
   view.innerHTML=h+'</div>';
   view.querySelectorAll('[data-work]').forEach(function(el){
@@ -853,8 +864,8 @@ function renderWorkView(){
     w.moods.forEach(function(m){h+='<span class="work-mood" data-mood-tag="'+esc(m)+'">'+esc(m)+'</span>'});
     h+='</div>';
   }
-  var ca=workCreatedAt(w);
-  if(ca)h+='<div class="muted" style="margin-top:10px">添加于 '+fmtTs(ca)+'</div>';
+  var ct=fmtWorkCreated(w);
+  if(ct)h+='<div class="muted" style="margin-top:10px">添加于 '+esc(ct)+'</div>';
   var pids=getPlanIds(w);
   if(pids.length){
     var planNames=[];
@@ -1046,7 +1057,6 @@ function addWorkModal(work,category){
       work.planIds=selectedPlanIds.slice();
       work.planId=selectedPlanIds[0]||null;
       work.stages=editStages.map(function(s){return{images:(s.images||[]).slice(),cumulative:s.cumulative,date:s.date,note:s.note,savedAt:s.savedAt}});
-      /* 不再同步 createdAt，节点排序永远按原始创建时间 */
       if(allNewFiles.length){
         var cum=(parseInt(document.getElementById('wf-h').value)||0)*60+(parseInt(document.getElementById('wf-m').value)||0);
         var date=document.getElementById('wf-date').value||today(),snote=document.getElementById('wf-snote').value.trim();
@@ -1346,8 +1356,7 @@ function planCardHTML(p,archived){
   }else{
     h+='<div class="pm-row"><span class="pm-k">时间</span><span class="pm-v" style="color:#aaa">暂无带日期的图片</span></div>';
   }
-  h+='</div>';
-  h+='</div>';
+  h+='</div></div>';
   return h;
 }
 
@@ -1446,8 +1455,7 @@ function renderPlanDetail(){
   }else{
     h+='<div class="pm-row"><span class="pm-k">时间</span><span class="pm-v" style="color:#aaa">暂无带日期的图片</span></div>';
   }
-  h+='</div>';
-  h+='</div>';
+  h+='</div></div>';
   var nodes=p.nodes||[];
   var imgs=[];
   if(nodes.length){
@@ -1537,7 +1545,6 @@ function pickCover(p,nodeId){
   });
 }
 
-/* ===== 星级分布统计 ===== */
 function renderStarDistribution(){
   var sd={};
   for(var s=5;s>=1;s--)sd[s]={imgs:0,min:0,works:0};
@@ -1710,7 +1717,7 @@ function renderSearchResults(){
   if(!list.length){box.innerHTML=h+'<div class="empty" style="padding:24px 10px">没有匹配的作品</div>';return}
   h+='<div class="timeline">';
   list.forEach(function(w){
-    var imgs=getAllWorkImages(w),ca=workCreatedAt(w),dateStr=ca?fmtTs(ca):'未知时间';
+    var imgs=getAllWorkImages(w),ct=fmtWorkCreated(w),dateStr=ct?ct:'未知时间';
     h+='<div class="tl-item"><div class="tl-date" data-tlwork="'+w.id+'">'+esc(dateStr)+(w.category?' · '+esc(w.category):'')+'</div><div class="tl-card"><div class="tl-top">'+starsHTML(w.rating||0,true,true)+'<span class="muted">'+fmtDur(workTotal(w))+'</span></div>';
     if(imgs.length){h+='<div class="tl-thumbs">';imgs.forEach(function(im,i){h+='<img src="'+im+'" data-tlimg="'+w.id+'_'+i+'">'});h+='</div>'}
     if(w.moods&&w.moods.length){h+='<div class="tl-moods">';w.moods.forEach(function(mm){h+='<span class="work-mood" data-mood-tag="'+esc(mm)+'">'+esc(mm)+'</span>'});h+='</div>'}
@@ -1747,7 +1754,7 @@ function renderImageCalendar(){
     +'<button class="btn sm o" data-cal="prev" style="padding:6px 10px">‹</button>'
     +'<button class="btn sm o" id="calTitleBtn" style="flex:1;font-weight:600;font-size:14px;margin:0;background:#f0f0f3;border:none;color:#1a1a1a">'+y+'年'+(m+1)+'月 ▾</button>'
     +'<button class="btn sm o" data-cal="next" style="padding:6px 10px">›</button>'
-    +'<button class="btn sm o" id="calTodayBtn" style="padding:6px 12px;font-weight:700;color:#7a82a8;border-color:#c3c9e0">今</button>'
+    +'<button class="btn sm o" id="calTodayBtn" style="padding:6px 12px;font-weight:700;color:#5a6288;border-color:#7a82a8">今</button>'
     +'</div><div class="cal">'+cells+'</div></div>';
 }
 function bindCalendarEvents(){
@@ -1788,7 +1795,8 @@ function openCalPicker(){
       var ds=py+'-'+pad(pm+1)+'-'+pad(dd);
       var isToday=(ds===todayStr);
       var cls='chip'+(isSel?' on':'');
-      var style='padding:7px 0;font-size:13px;border-radius:8px;'+(isToday&&!isSel?'border-color:#7a82a8;color:#5a6288;font-weight:700;':'');
+      var style='padding:7px 0;font-size:13px;border-radius:8px;';
+      if(isToday&&!isSel){style+='border-color:#3d4468;background:#5a6288;color:#fff;font-weight:700;';}
       dh+='<button type="button" class="'+cls+'" data-cpd="'+dd+'" style="'+style+'">'+dd+'</button>';
     }
     var el=document.getElementById('cpDays');
@@ -1832,7 +1840,6 @@ function showDayImages(ds){
   document.querySelectorAll('[data-dayimg]').forEach(function(el){el.onclick=function(e){e.stopPropagation();openImageViewer(imgs,Number(el.dataset.dayimg),false)}});
 }
 
-/* ===== 折线图：点击显示垂直虚线，时间放大显示在图表下方 ===== */
 var lastChartPts=[];
 function lineChart(pts){
   lastChartPts=pts||[];
@@ -1919,7 +1926,7 @@ function renderSettings(){
   h+='<button class="btn o" id="expBtn">一键导出所有数据</button><button class="btn o" id="impBtn">一键导入数据</button>';
   var totalImgs=0;DB.works.forEach(function(w){totalImgs+=workImgCount(w)});
   h+='<div class="card"><h3>存储</h3><div class="muted">作品 '+DB.works.length+' 个 · 图片 '+totalImgs+' 张<br>使用 '+(idb?'IndexedDB':'内存（本次会话有效，退出后丢失）')+'<br>新图压缩：长边≤'+IMG_MAX_SIDE+'px，JPEG质量 '+Math.round(IMG_QUALITY*100)+'%</div></div>';
-  h+='<div class="card"><h3>说明</h3><div class="muted">所有图片均可点开查看大图，支持双指缩放、双击放大、拖拽、滚轮缩放。计划分两种：按时间（作品按时间轴顺延，可跨节点）和按张数（每 N 张一个节点，按加入顺序分配）。一个作品可以同时加入多个计划。计划完成后自动归档。计划卡片与详情页会标注首张图、末张图的时间（24小时制）以及总共花费的天数。添加作品时，一次上传的多张图片会分组显示，但仍可一起翻阅。月统计按周展示。统计页的图片日历可点击标题选择年月日，点“今”一键回到本月。每日时长图表点击日期会显示垂直虚线与下方放大的具体时长。</div></div>';
+  h+='<div class="card"><h3>说明</h3><div class="muted">所有图片均可点开查看大图，支持双指缩放、双击放大、拖拽、滚轮缩放。计划分两种：按时间（作品按时间轴顺延，可跨节点）和按张数（每 N 张一个节点，按加入顺序分配）。一个作品可以同时加入多个计划。计划完成后自动归档。计划卡片与详情页会标注首张图、末张图的时间（24小时制）以及总共花费的天数。作品卡片与详情页会显示添加作品时的具体时间（24小时制精确到分）。添加作品时，一次上传的多张图片会分组显示，但仍可一起翻阅。月统计按周展示。统计页的图片日历可点击标题选择年月日，点“今”一键回到本月。每日时长图表点击日期会显示垂直虚线与下方放大的具体时长。</div></div>';
   view.innerHTML=h;
   document.getElementById('addCat').onclick=addCategoryModal;
   document.getElementById('compressBtn').onclick=compressAllStoredImages;
