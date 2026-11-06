@@ -262,7 +262,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
   <span id="title">画集</span>
   <button class="side" id="action">＋</button>
 </div>
-<div id="view"></div>
+<div id="view"><div class="empty">加载中…</div></div>
 <div id="tabs">
 <button class="tab on" data-t="collections">画集</button>
 <button class="tab" data-t="stats">统计</button>
@@ -283,7 +283,7 @@ var MOOD_TAGS=['灵感爆棚','手感全开','稳扎慢练','卡住反复','惊�
 var PLAN_HEAT_COLOR='#3d4468';
 var DB={categories:[],works:[],checkins:[],checkinLogs:[],plans:[]};
 var state={tab:'collections',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',statOffset:0,calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false,archFoldOpen:false,searchFoldOpen:false,q:'',stars:[],_editWorkId:null,_editStages:null,checkinCalMonth:{},mood:null,
-  catRange:{type:'all',off:0},starRange:{type:'all',off:0},planHeatMonth:{}};
+  catRange:{type:'day',off:0},starRange:{type:'all',off:0},planHeatMonth:{}};
 var view=document.getElementById('view'),titleEl=document.getElementById('title'),backEl=document.getElementById('back'),actionEl=document.getElementById('action');
 var todayBgImg=null,todayShowTimer=null,viewerImgs=[],viewerIdx=0,viewerSyncWork=false,idb=null,memStore={};
 var starDistImgs={};
@@ -919,12 +919,15 @@ function renderCollections(){
   titleEl.textContent='画集';actionEl.style.display='block';actionEl.onclick=addCategoryModal;
   backEl.style.display='none';state.category=null;state.workId=null;state.mood=null;
   if(!DB.categories.length){view.innerHTML='<div class="empty">还没有画集<br>点右上角 ＋ 新建分类</div>';return}
+  var catMap={};
+  DB.works.forEach(function(w){var k=w.category||'';(catMap[k]=catMap[k]||[]).push(w)});
   var h='<div class="grid11">';
   DB.categories.forEach(function(c){
-    var works=DB.works.filter(function(w){return w.category===c.name});
-    var total=works.reduce(function(s,w){return s+workTotal(w)},0),cover=null;
+    var works=catMap[c.name]||[];
+    var total=0,cover=null;
     for(var i=works.length-1;i>=0;i--){cover=workCover(works[i]);if(cover)break}
-    h+='<div class="cat-tile" data-cat="'+esc(c.name)+'"><div class="thumb">'+(cover?'<img src="'+cover+'">':'')+'</div><div class="meta"><div class="nm">'+esc(c.name)+'</div><div class="tm">'+works.length+' 作品 · '+fmtDur(total)+'</div></div></div>';
+    for(var j=0;j<works.length;j++)total+=workTotal(works[j]);
+    h+='<div class="cat-tile" data-cat="'+esc(c.name)+'"><div class="thumb">'+(cover?'<img src="'+cover+'" loading="lazy">':'')+'</div><div class="meta"><div class="nm">'+esc(c.name)+'</div><div class="tm">'+works.length+' 作品 · '+fmtDur(total)+'</div></div></div>';
   });
   view.innerHTML=h+'</div>';
   view.querySelectorAll('[data-cat]').forEach(function(el){
@@ -943,7 +946,7 @@ function renderCategoryView(){
   h+='<div class="grid11">';
   works.forEach(function(w){
     var cover=workCover(w),ct=fmtWorkCreated(w);
-    h+='<div class="work-tile" data-work="'+w.id+'"><div class="thumb" data-cover="'+(cover?'1':'0')+'">'+(cover?'<img src="'+cover+'">':'')+'</div><div class="meta">'+starsHTML(w.rating||0,true)+workMoodsHTML(w)+'<div class="tm">'+fmtDur(workTotal(w))+'</div>'+(ct?'<div class="dt">添加 '+esc(ct)+'</div>':'')+'</div></div>';
+    h+='<div class="work-tile" data-work="'+w.id+'"><div class="thumb" data-cover="'+(cover?'1':'0')+'">'+(cover?'<img src="'+cover+'" loading="lazy">':'')+'</div><div class="meta">'+starsHTML(w.rating||0,true)+workMoodsHTML(w)+'<div class="tm">'+fmtDur(workTotal(w))+'</div>'+(ct?'<div class="dt">添加 '+esc(ct)+'</div>':'')+'</div></div>';
   });
   view.innerHTML=h+'</div>';
   view.querySelectorAll('[data-work]').forEach(function(el){
@@ -971,7 +974,7 @@ function renderMoodView(){
   h+='<div class="grid11">';
   works.forEach(function(w){
     var cover=workCover(w),ct=fmtWorkCreated(w);
-    h+='<div class="work-tile" data-work="'+w.id+'"><div class="thumb" data-cover="'+(cover?'1':'0')+'">'+(cover?'<img src="'+cover+'">':'')+'</div><div class="meta">'+starsHTML(w.rating||0,true)+workMoodsHTML(w)+'<div class="tm">'+fmtDur(workTotal(w))+'</div>'+(ct?'<div class="dt">添加 '+esc(ct)+'</div>':'')+'</div></div>';
+    h+='<div class="work-tile" data-work="'+w.id+'"><div class="thumb" data-cover="'+(cover?'1':'0')+'">'+(cover?'<img src="'+cover+'" loading="lazy">':'')+'</div><div class="meta">'+starsHTML(w.rating||0,true)+workMoodsHTML(w)+'<div class="tm">'+fmtDur(workTotal(w))+'</div>'+(ct?'<div class="dt">添加 '+esc(ct)+'</div>':'')+'</div></div>';
   });
   view.innerHTML=h+'</div>';
   view.querySelectorAll('[data-work]').forEach(function(el){
@@ -1082,7 +1085,7 @@ function addWorkModal(work,category){
     editStages.forEach(function(stage,idx){
       var prevCum=idx===0?0:(editStages[idx-1].cumulative||0),dur=(stage.cumulative||0)-prevCum;
       body+='<div class="existing-stage-row"><div class="existing-stage-label">阶段 '+(idx+1)+' · '+fmtDur(dur)+' · 累计 '+fmtDur(stage.cumulative)+(stage.date?' · '+esc(stage.date):'')+(stage.note?' · '+esc(stage.note):'')+'</div>';
-      if(stage.images&&stage.images.length){body+='<div class="existing-stage-thumbs">';stage.images.forEach(function(img,i){body+='<img src="'+img+'" data-stageimg="'+idx+'_'+i+'">'});body+='</div>'}
+      if(stage.images&&stage.images.length){body+='<div class="existing-stage-thumbs">';stage.images.forEach(function(img,i){body+='<img src="'+img+'" loading="lazy" data-stageimg="'+idx+'_'+i+'">'});body+='</div>'}
       body+='<div class="stage-btn-row"><button class="btn o" id="stage-edit-btn-'+idx+'" type="button">编辑 / 改时长 / 换图</button><button class="btn o" id="stage-del-btn-'+idx+'" type="button" style="color:#c33">删除</button></div></div>';
     });
     body+='</div>';
@@ -1152,7 +1155,7 @@ function addWorkModal(work,category){
       var grid=document.createElement('div');grid.className='grid34';
       batch.forEach(function(url,i){
         var d=document.createElement('div');d.className='newthumb';
-        var img=document.createElement('img');img.src=url;
+        var img=document.createElement('img');img.src=url;img.loading='lazy';
         var rm=document.createElement('button');rm.className='rm';rm.type='button';rm.textContent='×';
         rm.onclick=function(ev){ev.preventDefault();ev.stopPropagation();batch.splice(i,1);if(!batch.length)newBatches.splice(bi,1);renderNewPreview();};
         img.onclick=function(e){e.stopPropagation();openImageViewer(batch.slice(),i,false);};
@@ -1248,7 +1251,7 @@ function openEditStageModal(stages,idx,work){
     var wrap=document.getElementById('edit-imgs-wrap');if(!wrap)return;
     if(editImages.length){
       var h='<div class="edit-stage-imgs">';
-      editImages.forEach(function(img,i){h+='<div class="esi-cell"><img src="'+img+'" data-esi="'+i+'"></div>'});
+      editImages.forEach(function(img,i){h+='<div class="esi-cell"><img src="'+img+'" loading="lazy" data-esi="'+i+'"></div>'});
       h+='</div>';wrap.innerHTML=h;
       wrap.querySelectorAll('[data-esi]').forEach(function(el){
         var i=Number(el.dataset.esi);
@@ -1573,7 +1576,7 @@ function showPlanDayImages(plan,ds){
   var info=ds+' · '+(isCount?('共 '+totalCount+' 张'):('总绘制 '+fmtDur(totalMin)));
   var h='<div class="muted" style="margin-bottom:10px">'+esc(info)+' · 点图片可看大图</div>';
   if(!imgs.length)h+='<div class="empty">这一天没有图片</div>';
-  else{h+='<div class="grid34">';imgs.forEach(function(img,i){h+='<div class="cell" data-pdayimg="'+i+'"><img src="'+img+'"></div>'});h+='</div>'}
+  else{h+='<div class="grid34">';imgs.forEach(function(img,i){h+='<div class="cell" data-pdayimg="'+i+'"><img src="'+img+'" loading="lazy"></div>'});h+='</div>'}
   openModal(ds+' 的图片（'+imgs.length+'）',h,'<button class="btn o" data-close>关闭</button>');
   document.querySelectorAll('[data-pdayimg]').forEach(function(el){el.onclick=function(e){e.stopPropagation();openImageViewer(imgs,Number(el.dataset.pdayimg),false)}});
 }
@@ -1702,7 +1705,7 @@ function renderPlanDetail(){
     if(imgs.length){
       var cover=(n.coverImg&&imgs.indexOf(n.coverImg)>=0)?n.coverImg:imgs[0];
       h+='<div class="node-cover"><img src="'+cover+'" id="nodeBigImg"></div><div class="node-thumbs">';
-      imgs.forEach(function(img,i){h+='<img src="'+img+'" data-thumb="'+img+'" data-tidx="'+i+'"'+(img===cover?' style="outline:2px solid #1a1a1a;outline-offset:-2px"':'')+'>'});
+      imgs.forEach(function(img,i){h+='<img src="'+img+'" loading="lazy" data-thumb="'+img+'" data-tidx="'+i+'"'+(img===cover?' style="outline:2px solid #1a1a1a;outline-offset:-2px"':'')+'>'});
       h+='</div>';
     }else h+='<div class="empty">这个节点还没有图片</div>';
     h+='</div>';
@@ -1765,7 +1768,7 @@ function pickCover(p,nodeId){
   var n=ta.node,imgs=ta.images||[];
   if(!imgs.length){toast('该节点还没有图片');return}
   var h='<div class="pick-grid">';
-  imgs.forEach(function(img,i){h+='<div class="pcell'+(n.coverImg===img?' sel':'')+'" data-pick="'+img+'" data-pidx="'+i+'"><img src="'+img+'"></div>'});
+  imgs.forEach(function(img,i){h+='<div class="pcell'+(n.coverImg===img?' sel':'')+'" data-pick="'+img+'" data-pidx="'+i+'"><img src="'+img+'" loading="lazy"></div>'});
   openModal('选择封面（单击选中，双击查看大图）',h+'</div>','<button class="btn o" data-close>取消</button>');
   document.querySelectorAll('[data-pick]').forEach(function(el){
     var i=Number(el.dataset.pidx)||0;
@@ -1884,23 +1887,33 @@ function renderStats(){
   h2+='<div class="muted" style="margin-bottom:6px;line-height:1.7">合计 '+fmtDur(total)+'<br>'+avgLabel+' '+fmtDur(avgVal)+(avgNote?'（'+avgNote+'）':'')+'</div>'+lineChart(pts);
   h2+='<div class="chart-detail" id="chartDetail"></div></div>';
 
-  /* 分类汇总（支持时段筛选） */
-  var cf=state.catRange||{type:'all',off:0};
+  /* ===== 分类汇总（默认当日，按阶段日期累计，口径与总绘画时长一致） ===== */
+  var cf=state.catRange||{type:'day',off:0};
   var cb=rangeBounds(cf.type,cf.off);
-  var cat={};
+  var cat={},catWorkMap={},rangeWorkMap={},rangeTotalMin=0;
   DB.works.forEach(function(w){
     (w.stages||[]).forEach(function(s,i){
       if(!inRange(s.date,cb))return;
       var k=w.category||'未分类';
-      cat[k]=(cat[k]||0)+stageDur(w,i);
+      var d=stageDur(w,i);
+      cat[k]=(cat[k]||0)+d;
+      rangeTotalMin+=d;
+      rangeWorkMap[w.id]=true;
+      if(!catWorkMap[k])catWorkMap[k]={};
+      catWorkMap[k][w.id]=true;
     });
   });
   var ca=Object.keys(cat).sort(function(a,b){return cat[b]-cat[a]});
   var cm=Math.max(1,Math.max.apply(null,ca.map(function(k){return cat[k]})));
+  var rangeWorkCount=Object.keys(rangeWorkMap).length;
   h2+='<div class="card"><h3>分类汇总</h3>';
   h2+=rangeSelectorHTML('catRange',cf);
+  h2+='<div class="muted" style="margin-bottom:12px">所选时段合计：'+rangeWorkCount+' 个作品 · '+fmtDur(rangeTotalMin)+'</div>';
   if(!ca.length)h2+='<div class="muted" style="padding:8px 0">该时段暂无数据</div>';
-  ca.forEach(function(k){h2+='<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:13px"><span>'+esc(k)+'</span><span class="muted">'+fmtDur(cat[k])+'</span></div><div class="bar"><i style="width:'+(cat[k]/cm*100)+'%"></i></div></div>'});
+  ca.forEach(function(k){
+    var wn=catWorkMap[k]?Object.keys(catWorkMap[k]).length:0;
+    h2+='<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:13px;gap:8px"><span>'+esc(k)+'</span><span class="muted" style="text-align:right">'+wn+' 个作品 · '+fmtDur(cat[k])+'</span></div><div class="bar"><i style="width:'+(cat[k]/cm*100)+'%"></i></div></div>';
+  });
   h2+='</div>';
 
   h2+=renderStarDistribution();
@@ -2016,7 +2029,7 @@ function renderSearchResults(){
   list.forEach(function(w){
     var imgs=getAllWorkImages(w),ct=fmtWorkCreated(w),dateStr=ct?ct:'未知时间';
     h+='<div class="tl-item"><div class="tl-date" data-tlwork="'+w.id+'">'+esc(dateStr)+(w.category?' · '+esc(w.category):'')+'</div><div class="tl-card"><div class="tl-top">'+starsHTML(w.rating||0,true,true)+'<span class="muted">'+fmtDur(workTotal(w))+'</span></div>';
-    if(imgs.length){h+='<div class="tl-thumbs">';imgs.forEach(function(im,i){h+='<img src="'+im+'" data-tlimg="'+w.id+'_'+i+'">'});h+='</div>'}
+    if(imgs.length){h+='<div class="tl-thumbs">';imgs.forEach(function(im,i){h+='<img src="'+im+'" loading="lazy" data-tlimg="'+w.id+'_'+i+'">'});h+='</div>'}
     if(w.moods&&w.moods.length){h+='<div class="tl-moods">';w.moods.forEach(function(mm){h+='<span class="work-mood" data-mood-tag="'+esc(mm)+'">'+esc(mm)+'</span>'});h+='</div>'}
     if(w.note)h+='<div class="tl-note">'+esc(w.note)+'</div>';
     h+='</div></div>';
@@ -2132,7 +2145,7 @@ function showDayImages(ds){
   DB.works.forEach(function(w){w.stages.forEach(function(s,i){if(s.date===ds){(s.images||[]).forEach(function(img){imgs.push(img)});totalMin+=stageDur(w,i)}})});
   var h='<div class="muted" style="margin-bottom:10px">'+ds+' · 总绘制 '+fmtDur(totalMin)+' · 点图片可看大图</div>';
   if(!imgs.length)h+='<div class="empty">这一天没有图片</div>';
-  else{h+='<div class="grid34">';imgs.forEach(function(img,i){h+='<div class="cell" data-dayimg="'+i+'"><img src="'+img+'"></div>'});h+='</div>'}
+  else{h+='<div class="grid34">';imgs.forEach(function(img,i){h+='<div class="cell" data-dayimg="'+i+'"><img src="'+img+'" loading="lazy"></div>'});h+='</div>'}
   openModal(ds+' 的图片（'+imgs.length+'）',h,'<button class="btn o" data-close>关闭</button>');
   document.querySelectorAll('[data-dayimg]').forEach(function(el){el.onclick=function(e){e.stopPropagation();openImageViewer(imgs,Number(el.dataset.dayimg),false)}});
 }
@@ -2223,7 +2236,7 @@ function renderSettings(){
   h+='<button class="btn o" id="expBtn">一键导出所有数据</button><button class="btn o" id="impBtn">一键导入数据</button>';
   var totalImgs=0;DB.works.forEach(function(w){totalImgs+=workImgCount(w)});
   h+='<div class="card"><h3>存储</h3><div class="muted">作品 '+DB.works.length+' 个 · 图片 '+totalImgs+' 张<br>使用 '+(idb?'IndexedDB':'内存（本次会话有效，退出后丢失）')+'<br>新图压缩：长边≤'+IMG_MAX_SIDE+'px，JPEG质量 '+Math.round(IMG_QUALITY*100)+'%</div></div>';
-  h+='<div class="card"><h3>说明</h3><div class="muted">所有图片均可点开查看大图，支持双指缩放、双击放大、拖拽、滚轮缩放。评分支持半颗星（点星星左半边 = 半颗，右半边 = 整颗）；统计中半颗会归入相邻的整颗（如 1.5 星归入 1 星）。计划分两种：按时间（作品按时间轴顺延，可跨节点）和按张数（每个作品计1张，按加入顺序分配，展示作品的最新进度图）。一个作品可以同时加入多个计划。计划完成后自动归档。每个计划（含已归档）详情页都有热力图：按时间计划显示每天画了多久，按张数计划显示每天画了几个作品，可切换月份；热力图颜色固定为深蓝灰，点热力图上的某一天可直接查看当天的图片。计划卡片与详情页会标注首张图、末张图的时间（24小时制）以及总共花费的天数。作品卡片与详情页会显示添加作品时的具体时间（24小时制精确到分）。添加作品时，一次上传的多张图片会分组显示，但仍可一起翻阅。月统计固定按 4 周展示（1-7 / 8-14 / 15-21 / 22-月末）。统计页的图片日历可点击标题选择年月日，点“今”一键回到本月。每日时长图表点击日期会显示垂直虚线与下方放大的具体时长。分类汇总与星级分布比例可按全部 / 年 / 月 / 周 / 日切换查看；星级分布比例中每个作品只取最新一张进度图统计，点击某一星级行可直接查看该星级对应的图片。</div></div>';
+  h+='<div class="card"><h3>说明</h3><div class="muted">所有图片均可点开查看大图，支持双指缩放、双击放大、拖拽、滚轮缩放。评分支持半颗星（点星星左半边 = 半颗，右半边 = 整颗）；统计中半颗会归入相邻的整颗（如 1.5 星归入 1 星）。计划分两种：按时间（作品按时间轴顺延，可跨节点）和按张数（每个作品计1张，按加入顺序分配，展示作品的最新进度图）。一个作品可以同时加入多个计划。计划完成后自动归档。每个计划（含已归档）详情页都有热力图：按时间计划显示每天画了多久，按张数计划显示每天画了几个作品，可切换月份；热力图颜色固定为深蓝灰，点热力图上的某一天可直接查看当天的图片。计划卡片与详情页会标注首张图、末张图的时间（24小时制）以及总共花费的天数。作品卡片与详情页会显示添加作品时的具体时间（24小时制精确到分）。添加作品时，一次上传的多张图片会分组显示，但仍可一起翻阅。月统计固定按 4 周展示（1-7 / 8-14 / 15-21 / 22-月末）。统计页的图片日历可点击标题选择年月日，点“今”一键回到本月。每日时长图表点击日期会显示垂直虚线与下方放大的具体时长。分类汇总默认显示当日，可按全部 / 年 / 月 / 周 / 日切换，并显示所选时段合计与每个分类的作品数；星级分布比例中每个作品只取最新一张进度图统计，点击某一星级行可直接查看该星级对应的图片。</div></div>';
   view.innerHTML=h;
   document.getElementById('addCat').onclick=addCategoryModal;
   document.getElementById('compressBtn').onclick=compressAllStoredImages;
@@ -2295,31 +2308,51 @@ function showBootError(msg){
 }
 function hideBootError(){var box=document.getElementById('bootErr');if(box)box.style.display='none'}
 
-try{go('collections')}catch(e){}
-
+/* ===== 启动：先快速渲染分类骨架，再异步加载作品等数据 ===== */
 (function boot(){
+  function finishRender(){
+    try{
+      if(state.tab==='planDetail'){renderPlanDetail();}
+      else if(state.tab==='collections'){
+        if(state.workId)renderWorkView();
+        else if(state.mood)renderMoodView();
+        else if(state.category)renderCategoryView();
+        else renderCollections();
+      }
+      else if(state.tab==='stats')renderStats();
+      else if(state.tab==='checkins')renderCheckins();
+      else renderSettings();
+    }catch(e){console.warn(e)}
+  }
   openIDB().then(function(){
-    return Promise.all([idbAll('categories'),idbAll('works'),idbAll('checkins'),idbAll('checkinLogs'),idbAll('plans'),idbAll('settings')]);
-  }).then(function(r){
-    DB.categories=r[0]||[];DB.works=r[1]||[];DB.checkins=r[2]||[];DB.checkinLogs=r[3]||[];DB.plans=r[4]||[];
-    var st=(r[5]||[]).filter(function(x){return x.id==='todayBg'})[0];
-    todayBgImg=st?st.img:null;
+    return idbAll('categories');
+  }).then(function(cats){
+    DB.categories=cats||[];
     if(!DB.categories.length){
-      var defs=['练习','创作','速写','长期作品'],ps=[];
-      defs.forEach(function(n){var c={id:uid(),name:n};DB.categories.push(c);ps.push(idbPut('categories',c))});
-      return Promise.all(ps);
+      ['练习','创作','速写','长期作品'].forEach(function(n){
+        var c={id:uid(),name:n};DB.categories.push(c);
+        if(idb)idbPut('categories',c);
+      });
     }
-  }).then(function(){
     hideBootError();
-    checkAndArchivePlans();
-    try{go('collections')}catch(e){showBootError('页面渲染失败：'+(e.message||''))}
+    /* 首屏骨架：只显示分类，封面与时长等数据到齐后再刷新 */
+    try{
+      if(state.tab==='collections'){renderCollections()}
+      else{go(state.tab==='planDetail'?'checkins':state.tab)}
+    }catch(e){}
+    return Promise.all([idbAll('works'),idbAll('checkins'),idbAll('checkinLogs'),idbAll('plans'),idbAll('settings')]);
+  }).then(function(r){
+    DB.works=r[0]||[];DB.checkins=r[1]||[];DB.checkinLogs=r[2]||[];DB.plans=r[3]||[];
+    var st=(r[4]||[]).filter(function(x){return x.id==='todayBg'})[0];
+    todayBgImg=st?st.img:null;
+    finishRender();
+    setTimeout(function(){try{checkAndArchivePlans()}catch(e){}},200);
   }).catch(function(e){
     console.warn('IDB 初始化失败，切换内存模式：',e);
     idb=null;DB.categories=[];DB.works=[];DB.checkins=[];DB.checkinLogs=[];DB.plans=[];todayBgImg=null;
-    if(!DB.categories.length)['练习','创作','速写','长期作品'].forEach(function(n){DB.categories.push({id:uid(),name:n})});
+    ['练习','创作','速写','长期作品'].forEach(function(n){DB.categories.push({id:uid(),name:n})});
     hideBootError();
-    checkAndArchivePlans();
-    try{go('collections')}catch(err){showBootError('页面渲染失败：'+(err.message||''))}
+    finishRender();
     setTimeout(function(){toast('当前为内存模式，数据退出后会丢失')},500);
   });
 })();
