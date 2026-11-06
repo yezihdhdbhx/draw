@@ -1517,7 +1517,7 @@ function renderPlanHeatmapHTML(p){
     if(v2>0){
       var ratio=max>0?v2/max:0;
       bg=heatShade(baseColor,ratio);
-      col=ratio>0.45?'#fff':'#1a1a1a';
+      col=ratio>0.4?'#fff':'#1a1a1a';
       label=isCount?(v2+'张'):fmtHeat(v2);
     }
     cells+='<div class="hd'+(ds2===td?' today':'')+'" style="background:'+bg+';color:'+col+'"><span class="hd-day">'+d2+'</span><span class="hd-v">'+label+'</span></div>';
