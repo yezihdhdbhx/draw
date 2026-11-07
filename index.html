@@ -262,7 +262,7 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
   <span id="title">画集</span>
   <button class="side" id="action">＋</button>
 </div>
-<div id="view"><div class="empty">加载中…</div></div>
+<div id="view"></div>
 <div id="tabs">
 <button class="tab on" data-t="collections">画集</button>
 <button class="tab" data-t="stats">统计</button>
@@ -638,7 +638,7 @@ function openIDB(){return new Promise(function(res,rej){
   req.onsuccess=function(e){idb=e.target.result;idb.onerror=function(){};idb.onversionchange=function(){try{idb.close()}catch(e){}};res()};
   req.onerror=function(e){rej(e.target.error||new Error('IDB 打开失败'))};
   req.onblocked=function(){rej(new Error('IDB 被其他页面占用'))};
-  setTimeout(function(){if(!idb)rej(new Error('IDB 打开超时'))},4000);
+  setTimeout(function(){if(!idb)rej(new Error('IDB 打开超时'))},2000);
 });}
 function tx(s,m){return idb.transaction(s,m||'readonly').objectStore(s)}
 function idbAll(s){if(!idb)return Promise.resolve(memStore[s]?Object.values(memStore[s]):[]);return new Promise(function(res,rej){var r=tx(s).getAll();r.onsuccess=function(){res(r.result)};r.onerror=function(){rej(r.error)}})}
@@ -1781,6 +1781,41 @@ function pickCover(p,nodeId){
   });
 }
 
+/* ===== 分类汇总作品列表弹窗：展示该分类在所选时段内涉及的作品，
+   点击某个作品进入作品详情（不是查看进度图） ===== */
+function openCatWorksModal(catName, itemMap, rangeTxt){
+  var items=Object.keys(itemMap).map(function(id){return itemMap[id]});
+  items.sort(function(a,b){return (workCreatedAt(b.w)||0)-(workCreatedAt(a.w)||0)});
+  var h='<div class="muted" style="margin-bottom:10px">'+esc(catName)+' · '+esc(rangeTxt)+' · '+items.length+' 个作品 · 点击作品进入详情</div>';
+  if(!items.length){
+    h+='<div class="empty">该时段没有作品</div>';
+  }else{
+    items.forEach(function(it){
+      var w=it.w,cover=workCover(w),ct=fmtWorkCreated(w);
+      h+='<div data-catwork="'+w.id+'" style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid #f2f2f5;cursor:pointer;align-items:center">';
+      h+='<div style="width:56px;height:56px;border-radius:8px;overflow:hidden;background:#d8d8dd;flex-shrink:0">'+(cover?'<img src="'+cover+'" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">':'')+'</div>';
+      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'+starsHTML(w.rating||0,true,true)+'<span class="muted" style="flex-shrink:0">本时段 '+fmtDur(it.min)+'</span></div>';
+      h+='<div class="muted" style="margin-top:4px;font-size:12px;line-height:1.5">总时长 '+fmtDur(workTotal(w))+(ct?' · 添加 '+esc(ct):'')+'</div>';
+      if(w.moods&&w.moods.length){
+        h+='<div class="work-moods" style="margin-top:4px">';
+        w.moods.forEach(function(m){h+='<span class="work-mood">'+esc(m)+'</span>'});
+        h+='</div>';
+      }
+      h+='</div></div>';
+    });
+  }
+  openModal('分类作品',h,'<button class="btn o" data-close>关闭</button>');
+  document.querySelectorAll('[data-catwork]').forEach(function(el){
+    el.onclick=function(e){
+      e.stopPropagation();
+      var id=Number(el.dataset.catwork);
+      closeModal();
+      openWorkFromSearch(id);
+    };
+  });
+}
+
 /* ===== 星级分布（支持时段筛选，半星归并，每个作品只取最新一张进度图） ===== */
 function renderStarDistribution(){
   var rf=state.starRange||{type:'all',off:0};
@@ -1887,7 +1922,9 @@ function renderStats(){
   h2+='<div class="muted" style="margin-bottom:6px;line-height:1.7">合计 '+fmtDur(total)+'<br>'+avgLabel+' '+fmtDur(avgVal)+(avgNote?'（'+avgNote+'）':'')+'</div>'+lineChart(pts);
   h2+='<div class="chart-detail" id="chartDetail"></div></div>';
 
-  /* ===== 分类汇总（默认当日，按阶段日期累计，口径与总绘画时长一致） ===== */
+  /* ===== 分类汇总（默认当日，按阶段日期累计，口径与总绘画时长一致） =====
+     每个分类会记录该时段内涉及的作品及每个作品在该时段内的时长；
+     点击分类行会弹出“作品列表”，点击作品进入作品详情（不是查看进度图） */
   var cf=state.catRange||{type:'day',off:0};
   var cb=rangeBounds(cf.type,cf.off);
   var cat={},catWorkMap={},rangeWorkMap={},rangeTotalMin=0;
@@ -1900,7 +1937,8 @@ function renderStats(){
       rangeTotalMin+=d;
       rangeWorkMap[w.id]=true;
       if(!catWorkMap[k])catWorkMap[k]={};
-      catWorkMap[k][w.id]=true;
+      if(!catWorkMap[k][w.id])catWorkMap[k][w.id]={w:w,min:0};
+      catWorkMap[k][w.id].min+=d;
     });
   });
   var ca=Object.keys(cat).sort(function(a,b){return cat[b]-cat[a]});
@@ -1911,8 +1949,9 @@ function renderStats(){
   h2+='<div class="muted" style="margin-bottom:12px">所选时段合计：'+rangeWorkCount+' 个作品 · '+fmtDur(rangeTotalMin)+'</div>';
   if(!ca.length)h2+='<div class="muted" style="padding:8px 0">该时段暂无数据</div>';
   ca.forEach(function(k){
-    var wn=catWorkMap[k]?Object.keys(catWorkMap[k]).length:0;
-    h2+='<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:13px;gap:8px"><span>'+esc(k)+'</span><span class="muted" style="text-align:right">'+wn+' 个作品 · '+fmtDur(cat[k])+'</span></div><div class="bar"><i style="width:'+(cat[k]/cm*100)+'%"></i></div></div>';
+    var items=catWorkMap[k]||{};
+    var wn=Object.keys(items).length;
+    h2+='<div data-catsum="'+esc(k)+'" style="margin-bottom:10px;cursor:pointer"><div style="display:flex;justify-content:space-between;font-size:13px;gap:8px"><span>'+esc(k)+'<span class="muted" style="font-size:11px;margin-left:6px">点击看作品</span></span><span class="muted" style="text-align:right">'+wn+' 个作品 · '+fmtDur(cat[k])+'</span></div><div class="bar"><i style="width:'+(cat[k]/cm*100)+'%"></i></div></div>';
   });
   h2+='</div>';
 
@@ -1931,6 +1970,14 @@ function renderStats(){
   var pn=document.getElementById('periodNext');
   if(pn)pn.onclick=function(){var o=state.statOffset||0;if(o>0){state.statOffset=o-1;renderStats()}};
   bindCalendarEvents();bindSearchEvents();renderSearchResults();bindChartTip();
+  /* 分类汇总：点击分类行弹出该时段作品列表（点击作品进入详情，不是看进度图） */
+  view.querySelectorAll('[data-catsum]').forEach(function(el){
+    el.onclick=function(e){
+      e.stopPropagation();
+      var name=el.dataset.catsum;
+      openCatWorksModal(name, catWorkMap[name]||{}, rangeLabel(cf.type,cf.off));
+    };
+  });
   /* 星级分布点击查看图片 */
   view.querySelectorAll('[data-starrow]').forEach(function(el){
     el.onclick=function(e){
@@ -2236,7 +2283,7 @@ function renderSettings(){
   h+='<button class="btn o" id="expBtn">一键导出所有数据</button><button class="btn o" id="impBtn">一键导入数据</button>';
   var totalImgs=0;DB.works.forEach(function(w){totalImgs+=workImgCount(w)});
   h+='<div class="card"><h3>存储</h3><div class="muted">作品 '+DB.works.length+' 个 · 图片 '+totalImgs+' 张<br>使用 '+(idb?'IndexedDB':'内存（本次会话有效，退出后丢失）')+'<br>新图压缩：长边≤'+IMG_MAX_SIDE+'px，JPEG质量 '+Math.round(IMG_QUALITY*100)+'%</div></div>';
-  h+='<div class="card"><h3>说明</h3><div class="muted">所有图片均可点开查看大图，支持双指缩放、双击放大、拖拽、滚轮缩放。评分支持半颗星（点星星左半边 = 半颗，右半边 = 整颗）；统计中半颗会归入相邻的整颗（如 1.5 星归入 1 星）。计划分两种：按时间（作品按时间轴顺延，可跨节点）和按张数（每个作品计1张，按加入顺序分配，展示作品的最新进度图）。一个作品可以同时加入多个计划。计划完成后自动归档。每个计划（含已归档）详情页都有热力图：按时间计划显示每天画了多久，按张数计划显示每天画了几个作品，可切换月份；热力图颜色固定为深蓝灰，点热力图上的某一天可直接查看当天的图片。计划卡片与详情页会标注首张图、末张图的时间（24小时制）以及总共花费的天数。作品卡片与详情页会显示添加作品时的具体时间（24小时制精确到分）。添加作品时，一次上传的多张图片会分组显示，但仍可一起翻阅。月统计固定按 4 周展示（1-7 / 8-14 / 15-21 / 22-月末）。统计页的图片日历可点击标题选择年月日，点“今”一键回到本月。每日时长图表点击日期会显示垂直虚线与下方放大的具体时长。分类汇总默认显示当日，可按全部 / 年 / 月 / 周 / 日切换，并显示所选时段合计与每个分类的作品数；星级分布比例中每个作品只取最新一张进度图统计，点击某一星级行可直接查看该星级对应的图片。</div></div>';
+  h+='<div class="card"><h3>说明</h3><div class="muted">所有图片均可点开查看大图，支持双指缩放、双击放大、拖拽、滚轮缩放。评分支持半颗星（点星星左半边 = 半颗，右半边 = 整颗）；统计中半颗会归入相邻的整颗（如 1.5 星归入 1 星）。计划分两种：按时间（作品按时间轴顺延，可跨节点）和按张数（每个作品计1张，按加入顺序分配，展示作品的最新进度图）。一个作品可以同时加入多个计划。计划完成后自动归档。每个计划（含已归档）详情页都有热力图：按时间计划显示每天画了多久，按张数计划显示每天画了几个作品，可切换月份；热力图颜色固定为深蓝灰，点热力图上的某一天可直接查看当天的图片。计划卡片与详情页会标注首张图、末张图的时间（24小时制）以及总共花费的天数。作品卡片与详情页会显示添加作品时的具体时间（24小时制精确到分）。添加作品时，一次上传的多张图片会分组显示，但仍可一起翻阅。月统计固定按 4 周展示（1-7 / 8-14 / 15-21 / 22-月末）。统计页的图片日历可点击标题选择年月日，点“今”一键回到本月。每日时长图表点击日期会显示垂直虚线与下方放大的具体时长。分类汇总默认显示当日，可按全部 / 年 / 月 / 周 / 日切换，并显示所选时段合计与每个分类的作品数；点击分类行会弹出该时段内该分类涉及的作品列表，点击作品进入作品详情（不是查看进度图）；星级分布比例中每个作品只取最新一张进度图统计，点击某一星级行可直接查看该星级对应的图片。</div></div>';
   view.innerHTML=h;
   document.getElementById('addCat').onclick=addCategoryModal;
   document.getElementById('compressBtn').onclick=compressAllStoredImages;
@@ -2310,6 +2357,29 @@ function hideBootError(){var box=document.getElementById('bootErr');if(box)box.s
 
 /* ===== 启动：先快速渲染分类骨架，再异步加载作品等数据 ===== */
 (function boot(){
+  /* 立即渲染分类骨架，不等 IDB，避免出现“加载中…”或白屏 */
+  var initialNames=['练习','创作','速写','长期作品'];
+  try{
+    var cached=localStorage.getItem('draw_cat_names');
+    if(cached){var parsed=JSON.parse(cached);if(Array.isArray(parsed)&&parsed.length)initialNames=parsed;}
+  }catch(e){}
+  try{
+    state.tab='collections';state.category=null;state.workId=null;state.mood=null;
+    titleEl.textContent='画集';
+    actionEl.style.display='block';actionEl.onclick=addCategoryModal;
+    backEl.style.display='none';
+    var sk='<div class="grid11">';
+    initialNames.forEach(function(name){
+      sk+='<div class="cat-tile"><div class="thumb"></div><div class="meta"><div class="nm">'+esc(name)+'</div><div class="tm">&nbsp;</div></div></div>';
+    });
+    sk+='</div>';
+    view.innerHTML=sk;
+  }catch(e){}
+
+  function cacheCatNames(){
+    try{localStorage.setItem('draw_cat_names',JSON.stringify(DB.categories.map(function(c){return c.name})))}catch(e){}
+  }
+
   function finishRender(){
     try{
       if(state.tab==='planDetail'){renderPlanDetail();}
@@ -2345,6 +2415,8 @@ function hideBootError(){var box=document.getElementById('bootErr');if(box)box.s
     DB.works=r[0]||[];DB.checkins=r[1]||[];DB.checkinLogs=r[2]||[];DB.plans=r[3]||[];
     var st=(r[4]||[]).filter(function(x){return x.id==='todayBg'})[0];
     todayBgImg=st?st.img:null;
+    hideBootError();
+    cacheCatNames();
     finishRender();
     setTimeout(function(){try{checkAndArchivePlans()}catch(e){}},200);
   }).catch(function(e){
