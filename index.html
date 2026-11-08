@@ -287,6 +287,8 @@ var state={tab:'collections',category:null,workId:null,workImgIdx:0,planId:null,
 var view=document.getElementById('view'),titleEl=document.getElementById('title'),backEl=document.getElementById('back'),actionEl=document.getElementById('action');
 var todayBgImg=null,todayShowTimer=null,viewerImgs=[],viewerIdx=0,viewerSyncWork=false,idb=null,memStore={};
 var starDistImgs={};
+var starDistWorks={};
+var pendingStarReturn=null;
 
 function uid(){return Date.now()+Math.floor(Math.random()*100000)}
 function pad(n){return String(n).padStart(2,'0')}
@@ -897,7 +899,7 @@ function bindMoodTags(){
 function go(tab){
   try{
     state.tab=tab;state.category=null;state.workId=null;state.workImgIdx=0;state.planId=null;state.nodeIdx=0;state.openCheckin=null;state.mood=null;
-    state._editWorkId=null;state._editStages=null;state.searchFoldOpen=false;
+    state._editWorkId=null;state._editStages=null;state.searchFoldOpen=false;pendingStarReturn=null;
     renderTabs();backEl.style.display='none';
     if(tab==='collections'){actionEl.style.display='block';actionEl.onclick=addCategoryModal;renderCollections()}
     else if(tab==='stats'){actionEl.style.display='none';renderStats()}
@@ -910,7 +912,21 @@ backEl.onclick=function(){
   var mr=document.getElementById('modalRoot');
   if(mr&&mr.innerHTML){closeModal();state._editWorkId=null;state._editStages=null;return}
   if(state.tab==='planDetail'){state.planId=null;state.nodeIdx=0;go('checkins')}
-  else if(state.workId){state.workId=null;state.workImgIdx=0;state._editWorkId=null;state._editStages=null;if(state.mood)renderMoodView();else renderCategoryView()}
+  else if(state.workId){
+    state.workId=null;state.workImgIdx=0;state._editWorkId=null;state._editStages=null;
+    if(pendingStarReturn){
+      var k=pendingStarReturn.k;
+      pendingStarReturn=null;
+      renderStats();
+      setTimeout(function(){
+        openStarWorksModal(k, starDistWorks[k]||{}, rangeLabel(state.starRange.type, state.starRange.off));
+      },0);
+      return;
+    }
+    if(state.mood)renderMoodView();
+    else if(state.tab==='stats')renderStats();
+    else renderCategoryView();
+  }
   else if(state.mood){state.mood=null;go('collections')}
   else if(state.category){go('collections')}
 };
@@ -1815,12 +1831,64 @@ function openCatWorksModal(catName, itemMap, rangeTxt){
   });
 }
 
+/* ===== 星级分布作品列表弹窗：缩略图 80×80，点击作品进入详情 ===== */
+function openStarWorksModal(k, itemMap, rangeTxt){
+  var items=Object.keys(itemMap).map(function(id){return itemMap[id]});
+  items.sort(function(a,b){return (workCreatedAt(b.w)||0)-(workCreatedAt(a.w)||0)});
+  var starsStr='';for(var z=0;z<k;z++)starsStr+='★';
+  var h='<div class="muted" style="margin-bottom:10px">'+starsStr+' · '+esc(rangeTxt)+' · '+items.length+' 个作品 · 点击作品进入详情</div>';
+  if(!items.length){
+    h+='<div class="empty">该星级没有作品</div>';
+  }else{
+    items.forEach(function(it){
+      var w=it.w,cover=workCover(w),ct=fmtWorkCreated(w);
+      h+='<div data-starwork="'+w.id+'" data-star="'+k+'" style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #f2f2f5;cursor:pointer;align-items:center">';
+      h+='<div style="width:80px;height:80px;border-radius:10px;overflow:hidden;background:#d8d8dd;flex-shrink:0">'+(cover?'<img src="'+cover+'" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">':'')+'</div>';
+      h+='<div style="flex:1;min-width:0">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'+starsHTML(w.rating||0,true,true)+'<span class="muted" style="flex-shrink:0">本时段 '+fmtDur(it.min)+'</span></div>';
+      h+='<div class="muted" style="margin-top:4px;font-size:12px;line-height:1.5">总时长 '+fmtDur(workTotal(w))+(ct?' · 添加 '+esc(ct):'')+'</div>';
+      if(w.moods&&w.moods.length){
+        h+='<div class="work-moods" style="margin-top:4px">';
+        w.moods.forEach(function(m){h+='<span class="work-mood">'+esc(m)+'</span>'});
+        h+='</div>';
+      }
+      h+='</div></div>';
+    });
+  }
+  openModal(starsStr+' 星级作品',h,'<button class="btn o" data-close>关闭</button>');
+  document.querySelectorAll('[data-starwork]').forEach(function(el){
+    el.onclick=function(e){
+      e.stopPropagation();
+      var id=Number(el.dataset.starwork);
+      var kk=Number(el.dataset.star);
+      closeModal();
+      openWorkFromStar(id, kk);
+    };
+  });
+}
+
+/* 从星级弹窗进入作品详情：返回时会回到统计页面并重新打开该星级作品列表 */
+function openWorkFromStar(id, k){
+  var w=DB.works.find(function(x){return x.id===id});if(!w)return;
+  state.tab='stats';
+  state.category=null;
+  state.mood=null;
+  state.workId=id;
+  state.workImgIdx=0;
+  state.planId=null;
+  state._editWorkId=null;
+  state._editStages=null;
+  pendingStarReturn={k:k};
+  renderTabs();
+  renderWorkView();
+}
+
 /* ===== 星级分布（支持时段筛选，半星归并，每个作品只取最新一张进度图） ===== */
 function renderStarDistribution(){
   var rf=state.starRange||{type:'all',off:0};
   var b=rangeBounds(rf.type,rf.off);
-  var sd={},sdImgs={};
-  for(var s=5;s>=1;s--){sd[s]={imgs:0,min:0,works:0};sdImgs[s]=[];}
+  var sd={},sdImgs={},sdWorks={};
+  for(var s=5;s>=1;s--){sd[s]={imgs:0,min:0,works:0};sdImgs[s]=[];sdWorks[s]={};}
   var totalImgs=0,totalMin=0;
   DB.works.forEach(function(w){
     var r=Number(w.rating)||0;
@@ -1838,16 +1906,19 @@ function renderStarDistribution(){
     var nImg=li?1:0;
     sd[bk].imgs+=nImg;sd[bk].min+=mi;sd[bk].works+=1;
     if(li)sdImgs[bk].push(li.img);
+    if(!sdWorks[bk][w.id])sdWorks[bk][w.id]={w:w,min:0};
+    sdWorks[bk][w.id].min+=mi;
     totalImgs+=nImg;totalMin+=mi;
   });
   starDistImgs=sdImgs;
+  starDistWorks=sdWorks;
   var h='<div class="card"><h3>星级分布比例</h3>';
   h+=rangeSelectorHTML('starRange',rf);
   if(!totalImgs&&!totalMin){
     h+='<div class="muted" style="padding:8px 0">该时段暂无数据</div></div>';
     return h;
   }
-  h+='<div class="muted" style="margin-bottom:12px">共 '+totalImgs+' 张图片（每个作品取最新进度图）· '+fmtDur(totalMin)+' · 点星级行可看图片</div>';
+  h+='<div class="muted" style="margin-bottom:12px">共 '+totalImgs+' 张图片（每个作品取最新进度图）· '+fmtDur(totalMin)+' · 点击星级行可看作品</div>';
   for(var k=5;k>=1;k--){
     var d=sd[k];
     var ip=totalImgs?(d.imgs/totalImgs*100):0;
@@ -1855,7 +1926,7 @@ function renderStarDistribution(){
     var starsStr='';for(var z=0;z<k;z++)starsStr+='★';
     h+='<div data-starrow="'+k+'" style="margin-bottom:12px;'+(d.works?'cursor:pointer;':'opacity:.42;')+'">';
     h+='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px">';
-    h+='<span style="letter-spacing:1px">'+starsStr+'<span class="muted" style="font-size:11px;margin-left:5px">'+d.works+' 个作品</span></span>';
+    h+='<span style="letter-spacing:1px">'+starsStr+'<span class="muted" style="font-size:11px;margin-left:5px">'+d.works+' 个作品</span>'+(d.works?'<span class="muted" style="font-size:11px;margin-left:5px">点击看作品</span>':'')+'</span>';
     h+='<span class="muted" style="font-size:12px">'+d.imgs+' 张 · '+fmtDur(d.min)+'</span>';
     h+='</div>';
     h+='<div style="display:flex;align-items:center;gap:6px;margin-top:6px"><span style="font-size:10px;color:#999;width:24px;flex-shrink:0">图片</span><div class="bar" style="flex:1;margin-top:0"><i style="width:'+ip.toFixed(1)+'%;background:#1a1a1a"></i></div><span style="font-size:10px;color:#666;width:42px;text-align:right;flex-shrink:0">'+ip.toFixed(1)+'%</span></div>';
@@ -1977,14 +2048,14 @@ function renderStats(){
       openCatWorksModal(name, catWorkMap[name]||{}, rangeLabel(cf.type,cf.off));
     };
   });
-  /* 星级分布点击查看图片 */
+  /* 星级分布：点星级行弹出该星级的作品列表（点击作品进入详情，返回回到统计页并重开列表） */
   view.querySelectorAll('[data-starrow]').forEach(function(el){
     el.onclick=function(e){
       e.stopPropagation();
       var k=Number(el.dataset.starrow);
-      var imgs=starDistImgs[k]||[];
-      if(!imgs.length){toast('该星级暂无图片');return}
-      openImageViewer(imgs,0,false);
+      var maps=starDistWorks[k]||{};
+      if(!Object.keys(maps).length){toast('该星级暂无作品');return}
+      openStarWorksModal(k, maps, rangeLabel(state.starRange.type, state.starRange.off));
     };
   });
   /* 时段筛选事件 */
@@ -2087,7 +2158,7 @@ function renderSearchResults(){
 }
 function openWorkFromSearch(id){
   var w=DB.works.find(function(x){return x.id===id});if(!w)return;
-  state.tab='collections';state.category=w.category;state.workId=id;state.workImgIdx=0;state.planId=null;state.mood=null;state._editWorkId=null;state._editStages=null;
+  state.tab='collections';state.category=w.category;state.workId=id;state.workImgIdx=0;state.planId=null;state.mood=null;state._editWorkId=null;state._editStages=null;pendingStarReturn=null;
   renderTabs();renderWorkView();
 }
 function renderImageCalendar(){
@@ -2282,7 +2353,7 @@ function renderSettings(){
   h+='<button class="btn o" id="expBtn">一键导出所有数据</button><button class="btn o" id="impBtn">一键导入数据</button>';
   var totalImgs=0;DB.works.forEach(function(w){totalImgs+=workImgCount(w)});
   h+='<div class="card"><h3>存储</h3><div class="muted">作品 '+DB.works.length+' 个 · 图片 '+totalImgs+' 张<br>使用 '+(idb?'IndexedDB':'内存（本次会话有效，退出后丢失）')+'<br>新图压缩：长边≤'+IMG_MAX_SIDE+'px，JPEG质量 '+Math.round(IMG_QUALITY*100)+'%</div></div>';
-  h+='<div class="card"><h3>说明</h3><div class="muted">所有图片均可点开查看大图，支持双指缩放、双击放大、拖拽、滚轮缩放。评分支持半颗星（点星星左半边 = 半颗，右半边 = 整颗）；统计中半颗会归入相邻的整颗（如 1.5 星归入 1 星）。计划分两种：按时间（作品按时间轴顺延，可跨节点）和按张数（每个作品计1张，按加入顺序分配，展示作品的最新进度图）。一个作品可以同时加入多个计划。计划完成后自动归档。每个计划（含已归档）详情页都有热力图：按时间计划显示每天画了多久，按张数计划显示每天画了几个作品，可切换月份；热力图颜色固定为深蓝灰，点热力图上的某一天可直接查看当天的图片。计划卡片与详情页会标注首张图、末张图的时间（24小时制）以及总共花费的天数。作品卡片与详情页会显示添加作品时的具体时间（24小时制精确到分）。添加作品时，一次上传的多张图片会分组显示，但仍可一起翻阅。月统计固定按 4 周展示（1-7 / 8-14 / 15-21 / 22-月末）。统计页的图片日历可点击标题选择年月日，点“今”一键回到本月。每日时长图表点击日期会显示垂直虚线与下方放大的具体时长。分类汇总默认显示当日，可按全部 / 年 / 月 / 周 / 日切换，并显示所选时段合计与每个分类的作品数；点击分类行会弹出该时段内该分类涉及的作品列表，点击作品进入作品详情（不是查看进度图）；星级分布比例中每个作品只取最新一张进度图统计，点击某一星级行可直接查看该星级对应的图片。</div></div>';
+  h+='<div class="card"><h3>说明</h3><div class="muted">所有图片均可点开查看大图，支持双指缩放、双击放大、拖拽、滚轮缩放。评分支持半颗星（点星星左半边 = 半颗，右半边 = 整颗）；统计中半颗会归入相邻的整颗（如 1.5 星归入 1 星）。计划分两种：按时间（作品按时间轴顺延，可跨节点）和按张数（每个作品计1张，按加入顺序分配，展示作品的最新进度图）。一个作品可以同时加入多个计划。计划完成后自动归档。每个计划（含已归档）详情页都有热力图：按时间计划显示每天画了多久，按张数计划显示每天画了几个作品，可切换月份；热力图颜色固定为深蓝灰，点热力图上的某一天可直接查看当天的图片。计划卡片与详情页会标注首张图、末张图的时间（24小时制）以及总共花费的天数。作品卡片与详情页会显示添加作品时的具体时间（24小时制精确到分）。添加作品时，一次上传的多张图片会分组显示，但仍可一起翻阅。月统计固定按 4 周展示（1-7 / 8-14 / 15-21 / 22-月末）。统计页的图片日历可点击标题选择年月日，点“今”一键回到本月。每日时长图表点击日期会显示垂直虚线与下方放大的具体时长。分类汇总默认显示当日，可按全部 / 年 / 月 / 周 / 日切换，并显示所选时段合计与每个分类的作品数；点击分类行会弹出该时段内该分类涉及的作品列表，点击作品进入作品详情（不是查看进度图）。星级分布比例中每个作品只取最新一张进度图统计；点击某一星级行会弹出该星级的作品列表（缩略图 80×80），点击作品进入作品详情，返回时回到统计页面并自动重新打开该星级列表。</div></div>';
   view.innerHTML=h;
   document.getElementById('addCat').onclick=addCategoryModal;
   document.getElementById('compressBtn').onclick=compressAllStoredImages;
