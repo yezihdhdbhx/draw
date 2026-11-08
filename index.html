@@ -1781,8 +1781,7 @@ function pickCover(p,nodeId){
   });
 }
 
-/* ===== 分类汇总作品列表弹窗：展示该分类在所选时段内涉及的作品，
-   点击某个作品进入作品详情（不是查看进度图） ===== */
+/* ===== 分类汇总作品列表弹窗：缩略图 80×80，点击作品进入作品详情（不是查看进度图） ===== */
 function openCatWorksModal(catName, itemMap, rangeTxt){
   var items=Object.keys(itemMap).map(function(id){return itemMap[id]});
   items.sort(function(a,b){return (workCreatedAt(b.w)||0)-(workCreatedAt(a.w)||0)});
@@ -1792,8 +1791,8 @@ function openCatWorksModal(catName, itemMap, rangeTxt){
   }else{
     items.forEach(function(it){
       var w=it.w,cover=workCover(w),ct=fmtWorkCreated(w);
-      h+='<div data-catwork="'+w.id+'" style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid #f2f2f5;cursor:pointer;align-items:center">';
-      h+='<div style="width:56px;height:56px;border-radius:8px;overflow:hidden;background:#d8d8dd;flex-shrink:0">'+(cover?'<img src="'+cover+'" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">':'')+'</div>';
+      h+='<div data-catwork="'+w.id+'" style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #f2f2f5;cursor:pointer;align-items:center">';
+      h+='<div style="width:80px;height:80px;border-radius:10px;overflow:hidden;background:#d8d8dd;flex-shrink:0">'+(cover?'<img src="'+cover+'" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">':'')+'</div>';
       h+='<div style="flex:1;min-width:0">';
       h+='<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'+starsHTML(w.rating||0,true,true)+'<span class="muted" style="flex-shrink:0">本时段 '+fmtDur(it.min)+'</span></div>';
       h+='<div class="muted" style="margin-top:4px;font-size:12px;line-height:1.5">总时长 '+fmtDur(workTotal(w))+(ct?' · 添加 '+esc(ct):'')+'</div>';
