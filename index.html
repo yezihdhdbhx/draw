@@ -259,13 +259,13 @@ label.fld{display:block;margin-bottom:4px;font-size:13px;color:#666;font-weight:
 </div>
 <div id="top">
   <button class="side" id="back">‹</button>
-  <span id="title">画集</span>
+  <span id="title">统计</span>
   <button class="side" id="action">＋</button>
 </div>
 <div id="view"></div>
 <div id="tabs">
-<button class="tab on" data-t="collections">画集</button>
-<button class="tab" data-t="stats">统计</button>
+<button class="tab on" data-t="stats">统计</button>
+<button class="tab" data-t="collections">画集</button>
 <button class="tab" data-t="checkins">打卡</button>
 <button class="tab" data-t="settings">设置</button>
 </div>
@@ -282,7 +282,7 @@ var IMG_MAX_SIDE=1600,IMG_QUALITY=0.82;
 var MOOD_TAGS=['灵感爆棚','手感全开','稳扎慢练','卡住反复','惊喜超标','随便摸鱼','换法试笔','小小进步','爆肝冲刺','疲惫挂机','细节打磨','产能见底','画废崩溃','自我怀疑','摆烂自救','情绪重启'];
 var PLAN_HEAT_COLOR='#3d4468';
 var DB={categories:[],works:[],checkins:[],checkinLogs:[],plans:[]};
-var state={tab:'collections',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',statOffset:0,calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false,archFoldOpen:false,searchFoldOpen:false,q:'',stars:[],_editWorkId:null,_editStages:null,checkinCalMonth:{},mood:null,
+var state={tab:'stats',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',statOffset:0,calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false,archFoldOpen:false,searchFoldOpen:false,q:'',stars:[],_editWorkId:null,_editStages:null,checkinCalMonth:{},mood:null,
   catRange:{type:'day',off:0},starRange:{type:'all',off:0},planHeatMonth:{}};
 var view=document.getElementById('view'),titleEl=document.getElementById('title'),backEl=document.getElementById('back'),actionEl=document.getElementById('action');
 var todayBgImg=null,todayShowTimer=null,viewerImgs=[],viewerIdx=0,viewerSyncWork=false,idb=null,memStore={};
@@ -2425,25 +2425,15 @@ function showBootError(msg){
 }
 function hideBootError(){var box=document.getElementById('bootErr');if(box)box.style.display='none'}
 
-/* ===== 启动：先快速渲染分类骨架，再异步加载作品等数据 ===== */
+/* ===== 启动：先显示统计占位，再异步加载全部数据后渲染统计页 ===== */
 (function boot(){
-  /* 立即渲染分类骨架，不等 IDB，避免出现“加载中…”或白屏 */
-  var initialNames=['练习','创作','速写','长期作品'];
+  /* 默认统计页：显示轻量占位，避免白屏；数据到齐后渲染完整统计页 */
   try{
-    var cached=localStorage.getItem('draw_cat_names');
-    if(cached){var parsed=JSON.parse(cached);if(Array.isArray(parsed)&&parsed.length)initialNames=parsed;}
-  }catch(e){}
-  try{
-    state.tab='collections';state.category=null;state.workId=null;state.mood=null;
-    titleEl.textContent='画集';
-    actionEl.style.display='block';actionEl.onclick=addCategoryModal;
+    state.tab='stats';state.category=null;state.workId=null;state.mood=null;
+    titleEl.textContent='统计';
+    actionEl.style.display='none';
     backEl.style.display='none';
-    var sk='<div class="grid11">';
-    initialNames.forEach(function(name){
-      sk+='<div class="cat-tile"><div class="thumb"></div><div class="meta"><div class="nm">'+esc(name)+'</div><div class="tm">&nbsp;</div></div></div>';
-    });
-    sk+='</div>';
-    view.innerHTML=sk;
+    view.innerHTML='<div class="card today-card"><div class="today-content"><div class="today-label">今日画画</div><div class="today-value">0分</div><div class="today-total">正在读取…</div></div></div>';
   }catch(e){}
 
   function cacheCatNames(){
@@ -2475,11 +2465,6 @@ function hideBootError(){var box=document.getElementById('bootErr');if(box)box.s
       });
     }
     hideBootError();
-    /* 首屏骨架：只显示分类，封面与时长等数据到齐后再刷新 */
-    try{
-      if(state.tab==='collections'){renderCollections()}
-      else{go(state.tab==='planDetail'?'checkins':state.tab)}
-    }catch(e){}
     return Promise.all([idbAll('works'),idbAll('checkins'),idbAll('checkinLogs'),idbAll('plans'),idbAll('settings')]);
   }).then(function(r){
     DB.works=r[0]||[];DB.checkins=r[1]||[];DB.checkinLogs=r[2]||[];DB.plans=r[3]||[];
