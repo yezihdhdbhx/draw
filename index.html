@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -1965,22 +1966,47 @@ function renderStats(){
   }else if(state.statRange==='month'){
     chartTitle='每周时长';
     var base=new Date(y,m-off,1),yy=base.getFullYear(),mm2=base.getMonth();
-    var days=new Date(yy,mm2+1,0).getDate();
-    var weekMin=[0,0,0,0];
-    for(var d2=1;d2<=days;d2++){
-      var ds2=yy+'-'+pad(mm2+1)+'-'+pad(d2);
-      var wk=Math.min(3,Math.floor((d2-1)/7));
-      var v2=allStages.filter(function(s){return s.date===ds2}).reduce(function(a,s){return a+s.duration},0);
-      weekMin[wk]+=v2;
+    
+    var firstDay=new Date(yy,mm2,1);
+    var firstDayWeekday=(firstDay.getDay()+6)%7; 
+    var startMonday=new Date(yy,mm2,1-firstDayWeekday);
+    
+    var lastDay=new Date(yy,mm2+1,0);
+    var lastDayWeekday=(lastDay.getDay()+6)%7;
+    var endSunday=new Date(yy,mm2+1,lastDay.getDate()+(6-lastDayWeekday));
+    
+    var currentMonday=new Date(startMonday);
+    var wIndex=1;
+    
+    while(currentMonday<=endSunday){
+      var wStart=fmtDate(currentMonday);
+      var tempSunday=new Date(currentMonday);
+      tempSunday.setDate(currentMonday.getDate()+6);
+      var wEnd=fmtDate(tempSunday);
+      
+      var v2=allStages.filter(function(s){ return s.date >= wStart && s.date <= wEnd; })
+                       .reduce(function(a,s){ return a + s.duration }, 0);
+      
+      pts.push({ 
+        l: '第'+wIndex+'周', 
+        v: v2, 
+        dateRange: wStart.slice(5) + ' ~ ' + wEnd.slice(5)
+      });
+      
       total+=v2;
+      currentMonday.setDate(currentMonday.getDate()+7);
+      wIndex++;
     }
-    for(var w=0;w<4;w++)pts.push({l:'第'+(w+1)+'周',v:weekMin[w]});
+    
     periodLabel=yy+'年'+(mm2+1)+'月';
-    var daysPassed=isCurrent?now.getDate():days;
-    var weeksPassed=Math.min(4,Math.ceil(daysPassed/7));
-    if(weeksPassed<1)weeksPassed=1;
+    
+    var daysInMonth=new Date(yy,mm2+1,0).getDate();
+    var daysPassed=isCurrent?now.getDate():daysInMonth;
+    var weeksPassed=Math.ceil(daysPassed/7); 
     avgLabel='平均每周';avgVal=total/weeksPassed;
-    if(isCurrent&&weeksPassed<4)avgNote='已过 '+weeksPassed+' 周';
+    if(isCurrent&&weeksPassed<pts.length){
+      avgNote='已过 '+weeksPassed+' 周';
+    }
   }else{
     chartTitle='每月时长';var yy2=y-off;
     for(var mm3=1;mm3<=12;mm3++){var pre=yy2+'-'+pad(mm3);
@@ -2333,7 +2359,13 @@ function bindChartTip(){
       sd.setAttribute('opacity','1');
     }
     var detail=document.getElementById('chartDetail');
-    if(detail)detail.innerHTML=esc(p.l)+' · '+fmtDur(p.v);
+    if(detail){
+      var txt=esc(p.l)+' · '+fmtDur(p.v);
+      if(p.dateRange) {
+        txt+='<div style="font-size:12px;color:#888;font-weight:400;margin-top:4px">'+p.dateRange+' (含跨月天数)</div>';
+      }
+      detail.innerHTML=txt;
+    }
   });
 }
 
