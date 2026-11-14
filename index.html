@@ -282,7 +282,7 @@ var IMG_MAX_SIDE=1600,IMG_QUALITY=0.82;
 var MOOD_TAGS=['灵感爆棚','手感全开','稳扎慢练','卡住反复','惊喜超标','随便摸鱼','换法试笔','小小进步','爆肝冲刺','疲惫挂机','细节打磨','产能见底','画废崩溃','自我怀疑','摆烂自救','情绪重启'];
 var PLAN_HEAT_COLOR='#3d4468';
 var DB={categories:[],works:[],checkins:[],checkinLogs:[],plans:[]};
-var state={tab:'stats',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',statOffset:0,calMonth:new Date(),openCheckin:null,ckSub:'checkin',archFoldOpen:false,searchFoldOpen:false,q:'',stars:[],_editWorkId:null,_editStages:null,checkinCalMonth:{},mood:null,
+var state={tab:'stats',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',statOffset:0,calMonth:new Date(),ckSub:'checkin',ckSelectedId:null,archFoldOpen:false,searchFoldOpen:false,q:'',stars:[],_editWorkId:null,_editStages:null,checkinCalMonth:{},mood:null,
   catRange:{type:'day',off:0},starRange:{type:'all',off:0},planHeatMonth:{}};
 var view=document.getElementById('view'),titleEl=document.getElementById('title'),backEl=document.getElementById('back'),actionEl=document.getElementById('action');
 var todayBgImg=null,todayShowTimer=null,viewerImgs=[],viewerIdx=0,viewerSyncWork=false,idb=null,memStore={};
@@ -898,7 +898,7 @@ function bindMoodTags(){
 
 function go(tab){
   try{
-    state.tab=tab;state.category=null;state.workId=null;state.workImgIdx=0;state.planId=null;state.nodeIdx=0;state.openCheckin=null;state.mood=null;
+    state.tab=tab;state.category=null;state.workId=null;state.workImgIdx=0;state.planId=null;state.nodeIdx=0;state.mood=null;
     state._editWorkId=null;state._editStages=null;state.searchFoldOpen=false;pendingStarReturn=null;
     renderTabs();backEl.style.display='none';
     if(tab==='collections'){actionEl.style.display='block';actionEl.onclick=addCategoryModal;renderCollections()}
@@ -1458,11 +1458,6 @@ function removeCheckinOnDate(checkinId,date){
     toast('已取消 '+date);renderCheckins();
   });
 }
-function toggleCheckinMonth(id){
-  state.openCheckin=(Number(state.openCheckin)===Number(id))?null:id;
-  var el=document.getElementById('cm-'+id);
-  if(el){if(Number(state.openCheckin)===Number(id))el.classList.remove('hidden');else el.classList.add('hidden')}
-}
 function doCheckin(id){
   var t=today();
   if(DB.checkinLogs.find(function(l){return Number(l.checkinId)===Number(id)&&l.date===t})){openCheckinNoteModal(id,t);return}
@@ -1620,25 +1615,41 @@ function renderCheckins(){
       h+='</div></div>';
     }
   }else{
-    h+='<div class="card">';
-    if(!DB.checkins.length)h+='<div class="empty">还没有打卡项，点右上角 ＋ 新建</div>';
-    else{
+    var td=today();
+    var selId=state.ckSelectedId;
+    if(selId==null||!DB.checkins.some(function(c){return Number(c.id)===Number(selId)})){
+      selId=DB.checkins.length?DB.checkins[0].id:null;
+      state.ckSelectedId=selId;
+    }
+    if(!DB.checkins.length){
+      h+='<div class="card"><div class="empty">还没有打卡项，点右上角 ＋ 新建</div></div>';
+    }else{
+      h+='<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px">';
       DB.checkins.forEach(function(c){
+        var doneToday=DB.checkinLogs.some(function(l){return Number(l.checkinId)===Number(c.id)&&l.date===td});
+        var on=(Number(c.id)===Number(selId));
+        h+='<button type="button" class="chip'+(on?' on':'')+'" data-cksel="'+c.id+'" style="flex-shrink:0">'+esc(c.name)+(doneToday?' ✓':'')+'</button>';
+      });
+      h+='</div>';
+      var c=DB.checkins.find(function(x){return Number(x.id)===Number(selId)});
+      if(c){
         var allLogs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)===Number(c.id)});
         var logs=allLogs.map(function(l){return l.date}).sort();
-        var last=logs[logs.length-1],info='还没有打卡';
-        if(last){var days=Math.round((new Date(today())-new Date(last))/86400000);info='距今天 '+days+' 天'}
-        var sc=streakCount(logs),doneToday=logs.indexOf(today())>=0;
-        var todayLog=allLogs.find(function(l){return l.date===today()}),notePrev='';
-        if(todayLog&&todayLog.note)notePrev=' · 📝'+todayLog.note.slice(0,12)+(todayLog.note.length>12?'…':'');
-        h+='<div class="chk-block"><div class="chk" data-chk="'+c.id+'" style="margin-top:8px"><div class="n"><div class="nm">'+esc(c.name)+'</div><div class="i">'+info+' · 当前连续 '+sc+' 天'+notePrev+'</div></div><button class="btn sm'+(doneToday?' punched':'')+'" data-do="'+c.id+'">'+(doneToday?'已打卡':'打卡')+'</button></div><div class="chk-month" id="cm-'+c.id+'"><div class="chk-month-inner">'+checkinCalendarHTML(c.id)+'<div class="chk-month-actions"><button class="btn o" data-ckedit="'+c.id+'">修改</button><button class="btn o" data-ckdel="'+c.id+'" style="color:#c33">删除</button></div></div></div></div>';
-      });
+        var doneToday=logs.indexOf(td)>=0;
+        h+='<div class="card">';
+        h+='<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px"><div class="nm" style="font-weight:600">'+esc(c.name)+'</div><div style="display:flex;gap:8px"><button class="btn sm o" data-ckedit="'+c.id+'">修改</button><button class="btn sm o" data-ckdel="'+c.id+'" style="color:#c33">删除</button></div></div>';
+        h+='<button class="btn" data-do="'+c.id+'">'+(doneToday?'已打卡 · 写备注':'打卡')+'</button>';
+        h+=checkinCalendarHTML(c.id);
+        h+='</div>';
+      }
     }
-    h+='</div>';
   }
   view.innerHTML=h;
   view.querySelectorAll('[data-cksub]').forEach(function(b){
     b.onclick=function(){state.ckSub=b.dataset.cksub;renderCheckins()};
+  });
+  view.querySelectorAll('[data-cksel]').forEach(function(b){
+    b.onclick=function(){state.ckSelectedId=Number(b.dataset.cksel);renderCheckins()};
   });
   view.querySelectorAll('[data-do]').forEach(function(b){var id=Number(b.dataset.do);bindTapAndDoubleTap(b,function(){doCheckin(id)},function(){cancelCheckin(id)})});
   view.querySelectorAll('[data-ckprev]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var id=Number(b.dataset.ckprev);state.checkinCalMonth[id]=(state.checkinCalMonth[id]||0)+1;renderCheckins()}});
@@ -1657,7 +1668,12 @@ function renderCheckins(){
     var logs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)===id});
     var ps=logs.map(function(l){return idbDel('checkinLogs',l.id)});
     ps.push(idbDel('checkins',id));
-    Promise.all(ps).then(function(){DB.checkins=DB.checkins.filter(function(x){return Number(x.id)!==id});DB.checkinLogs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)!==id});toast('已删除');renderCheckins()});
+    Promise.all(ps).then(function(){
+      DB.checkins=DB.checkins.filter(function(x){return Number(x.id)!==id});
+      DB.checkinLogs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)!==id});
+      if(Number(state.ckSelectedId)===id)state.ckSelectedId=null;
+      toast('已删除');renderCheckins();
+    });
   }});
   view.querySelectorAll('[data-plan]').forEach(function(el){el.onclick=function(){openPlanDetail(Number(el.dataset.plan))}});
   var archFold=document.getElementById('archFold');
