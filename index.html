@@ -282,7 +282,7 @@ var IMG_MAX_SIDE=1600,IMG_QUALITY=0.82;
 var MOOD_TAGS=['灵感爆棚','手感全开','稳扎慢练','卡住反复','惊喜超标','随便摸鱼','换法试笔','小小进步','爆肝冲刺','疲惫挂机','细节打磨','产能见底','画废崩溃','自我怀疑','摆烂自救','情绪重启'];
 var PLAN_HEAT_COLOR='#3d4468';
 var DB={categories:[],works:[],checkins:[],checkinLogs:[],plans:[]};
-var state={tab:'stats',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',statOffset:0,calMonth:new Date(),openCheckin:null,ckFoldOpen:false,planFoldOpen:false,archFoldOpen:false,searchFoldOpen:false,q:'',stars:[],_editWorkId:null,_editStages:null,checkinCalMonth:{},mood:null,
+var state={tab:'stats',category:null,workId:null,workImgIdx:0,planId:null,nodeIdx:0,statRange:'week',statOffset:0,calMonth:new Date(),openCheckin:null,ckSub:'checkin',archFoldOpen:false,searchFoldOpen:false,q:'',stars:[],_editWorkId:null,_editStages:null,checkinCalMonth:{},mood:null,
   catRange:{type:'day',off:0},starRange:{type:'all',off:0},planHeatMonth:{}};
 var view=document.getElementById('view'),titleEl=document.getElementById('title'),backEl=document.getElementById('back'),actionEl=document.getElementById('action');
 var todayBgImg=null,todayShowTimer=null,viewerImgs=[],viewerIdx=0,viewerSyncWork=false,idb=null,memStore={};
@@ -903,7 +903,7 @@ function go(tab){
     renderTabs();backEl.style.display='none';
     if(tab==='collections'){actionEl.style.display='block';actionEl.onclick=addCategoryModal;renderCollections()}
     else if(tab==='stats'){actionEl.style.display='none';renderStats()}
-    else if(tab==='checkins'){actionEl.style.display='block';actionEl.onclick=addCheckinOrPlan;renderCheckins()}
+    else if(tab==='checkins'){state.ckSub='checkin';actionEl.style.display='block';actionEl.onclick=addCheckinModal;renderCheckins()}
     else{actionEl.style.display='none';renderSettings()}
   }catch(e){toast('页面渲染出错：'+(e.message||''));console.error(e)}
 }
@@ -911,7 +911,14 @@ document.querySelectorAll('.tab').forEach(function(t){t.onclick=function(){go(t.
 backEl.onclick=function(){
   var mr=document.getElementById('modalRoot');
   if(mr&&mr.innerHTML){closeModal();state._editWorkId=null;state._editStages=null;return}
-  if(state.tab==='planDetail'){state.planId=null;state.nodeIdx=0;go('checkins')}
+  if(state.tab==='planDetail'){
+    state.planId=null;state.nodeIdx=0;
+    state.tab='checkins';state.ckSub='plan';
+    renderTabs();backEl.style.display='none';
+    actionEl.style.display='block';
+    actionEl.onclick=addPlanModal;
+    renderCheckins();
+  }
   else if(state.workId){
     state.workId=null;state.workImgIdx=0;state._editWorkId=null;state._editStages=null;
     if(pendingStarReturn){
@@ -1318,11 +1325,6 @@ function openEditStageModal(stages,idx,work){
   };
 }
 
-function addCheckinOrPlan(){
-  openModal('新建','<button class="btn" id="newCk" style="margin-bottom:10px">新建打卡项</button><button class="btn o" id="newPlan">新建计划</button>','<button class="btn o" data-close>取消</button>');
-  document.getElementById('newCk').onclick=function(){closeModal();addCheckinModal()};
-  document.getElementById('newPlan').onclick=function(){closeModal();addPlanModal()};
-}
 function addCheckinModal(){
   openModal('新建打卡项','<label class="fld">名称</label><input id="ck-name" placeholder="如：每日画画">','<button class="btn o" data-close>取消</button><button class="btn" id="ck-save">创建</button>');
   document.getElementById('ck-save').onclick=function(){
@@ -1598,39 +1600,47 @@ function showPlanDayImages(plan,ds){
 }
 
 function renderCheckins(){
-  titleEl.textContent='打卡';backEl.style.display='none';actionEl.style.display='block';actionEl.onclick=addCheckinOrPlan;
-  var h='<div class="card"><h3 class="card-h"><span>打卡</span><button class="fold-btn'+(state.ckFoldOpen?'':' closed')+'" id="ckFold">▾</button></h3>';
-  h+='<div id="ckBody"'+(state.ckFoldOpen?'':' class="hidden"')+'>';
-  if(!DB.checkins.length)h+='<div class="muted" style="padding:6px 0">还没有打卡项</div>';
-  else{
-    DB.checkins.forEach(function(c){
-      var allLogs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)===Number(c.id)});
-      var logs=allLogs.map(function(l){return l.date}).sort();
-      var last=logs[logs.length-1],info='还没有打卡';
-      if(last){var days=Math.round((new Date(today())-new Date(last))/86400000);info='距今天 '+days+' 天'}
-      var sc=streakCount(logs),doneToday=logs.indexOf(today())>=0,opened=Number(state.openCheckin)===Number(c.id);
-      var todayLog=allLogs.find(function(l){return l.date===today()}),notePrev='';
-      if(todayLog&&todayLog.note)notePrev=' · 📝'+todayLog.note.slice(0,12)+(todayLog.note.length>12?'…':'');
-      h+='<div class="chk-block"><div class="chk" data-chk="'+c.id+'" style="margin-top:8px"><div class="n"><div class="nm">'+esc(c.name)+'</div><div class="i">'+info+' · 当前连续 '+sc+' 天'+notePrev+'</div></div><button class="btn sm'+(doneToday?' punched':'')+'" data-do="'+c.id+'">'+(doneToday?'已打卡':'打卡')+'</button></div><div class="chk-month'+(opened?'':' hidden')+'" id="cm-'+c.id+'"><div class="chk-month-inner">'+checkinCalendarHTML(c.id)+'<div class="chk-month-actions"><button class="btn o" data-ckedit="'+c.id+'">修改</button><button class="btn o" data-ckdel="'+c.id+'" style="color:#c33">删除</button></div></div></div></div>';
-    });
-  }
-  h+='</div></div>';
-  h+='<div class="card"><h3 class="card-h"><span>计划</span><button class="fold-btn'+(state.planFoldOpen?'':' closed')+'" id="planFold">▾</button></h3>';
-  h+='<div id="planBody"'+(state.planFoldOpen?'':' class="hidden"')+'>';
-  var activePlans=DB.plans.filter(function(p){return !p.archived});
-  if(!activePlans.length)h+='<div class="muted" style="padding:6px 0">还没有进行中的计划</div>';
-  else activePlans.forEach(function(p){h+=planCardHTML(p,false)});
-  h+='</div></div>';
-  var archivedPlans=DB.plans.filter(function(p){return p.archived});
-  if(archivedPlans.length){
-    h+='<div class="card"><h3 class="card-h"><span>已归档 '+archivedPlans.length+'</span><button class="fold-btn'+(state.archFoldOpen?'':' closed')+'" id="archFold">▾</button></h3>';
-    h+='<div id="archBody"'+(state.archFoldOpen?'':' class="hidden"')+'>';
-    archivedPlans.forEach(function(p){h+=planCardHTML(p,true)});
-    h+='</div></div>';
+  titleEl.textContent='打卡';backEl.style.display='none';actionEl.style.display='block';
+  actionEl.onclick=state.ckSub==='plan'?addPlanModal:addCheckinModal;
+  var h='<div class="seg">';
+  h+='<button type="button" data-cksub="checkin"'+(state.ckSub==='checkin'?' class="on"':'')+'>打卡</button>';
+  h+='<button type="button" data-cksub="plan"'+(state.ckSub==='plan'?' class="on"':'')+'>计划</button>';
+  h+='</div>';
+  if(state.ckSub==='plan'){
+    var activePlans=DB.plans.filter(function(p){return !p.archived});
+    h+='<div class="card">';
+    if(!activePlans.length)h+='<div class="empty">还没有进行中的计划，点右上角 ＋ 新建</div>';
+    else activePlans.forEach(function(p){h+=planCardHTML(p,false)});
+    h+='</div>';
+    var archivedPlans=DB.plans.filter(function(p){return p.archived});
+    if(archivedPlans.length){
+      h+='<div class="card"><h3 class="card-h"><span>已归档 '+archivedPlans.length+'</span><button class="fold-btn'+(state.archFoldOpen?'':' closed')+'" id="archFold">▾</button></h3>';
+      h+='<div id="archBody"'+(state.archFoldOpen?'':' class="hidden"')+'>';
+      archivedPlans.forEach(function(p){h+=planCardHTML(p,true)});
+      h+='</div></div>';
+    }
+  }else{
+    h+='<div class="card">';
+    if(!DB.checkins.length)h+='<div class="empty">还没有打卡项，点右上角 ＋ 新建</div>';
+    else{
+      DB.checkins.forEach(function(c){
+        var allLogs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)===Number(c.id)});
+        var logs=allLogs.map(function(l){return l.date}).sort();
+        var last=logs[logs.length-1],info='还没有打卡';
+        if(last){var days=Math.round((new Date(today())-new Date(last))/86400000);info='距今天 '+days+' 天'}
+        var sc=streakCount(logs),doneToday=logs.indexOf(today())>=0;
+        var todayLog=allLogs.find(function(l){return l.date===today()}),notePrev='';
+        if(todayLog&&todayLog.note)notePrev=' · 📝'+todayLog.note.slice(0,12)+(todayLog.note.length>12?'…':'');
+        h+='<div class="chk-block"><div class="chk" data-chk="'+c.id+'" style="margin-top:8px"><div class="n"><div class="nm">'+esc(c.name)+'</div><div class="i">'+info+' · 当前连续 '+sc+' 天'+notePrev+'</div></div><button class="btn sm'+(doneToday?' punched':'')+'" data-do="'+c.id+'">'+(doneToday?'已打卡':'打卡')+'</button></div><div class="chk-month" id="cm-'+c.id+'"><div class="chk-month-inner">'+checkinCalendarHTML(c.id)+'<div class="chk-month-actions"><button class="btn o" data-ckedit="'+c.id+'">修改</button><button class="btn o" data-ckdel="'+c.id+'" style="color:#c33">删除</button></div></div></div></div>';
+      });
+    }
+    h+='</div>';
   }
   view.innerHTML=h;
+  view.querySelectorAll('[data-cksub]').forEach(function(b){
+    b.onclick=function(){state.ckSub=b.dataset.cksub;renderCheckins()};
+  });
   view.querySelectorAll('[data-do]').forEach(function(b){var id=Number(b.dataset.do);bindTapAndDoubleTap(b,function(){doCheckin(id)},function(){cancelCheckin(id)})});
-  view.querySelectorAll('[data-chk]').forEach(function(el){el.onclick=function(){toggleCheckinMonth(Number(el.dataset.chk))}});
   view.querySelectorAll('[data-ckprev]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var id=Number(b.dataset.ckprev);state.checkinCalMonth[id]=(state.checkinCalMonth[id]||0)+1;renderCheckins()}});
   view.querySelectorAll('[data-cknext]').forEach(function(b){b.onclick=function(e){e.stopPropagation();var id=Number(b.dataset.cknext);var o=state.checkinCalMonth[id]||0;if(o>0){state.checkinCalMonth[id]=o-1;renderCheckins()}}});
   view.querySelectorAll('[data-ckdate]').forEach(function(el){
@@ -1650,10 +1660,6 @@ function renderCheckins(){
     Promise.all(ps).then(function(){DB.checkins=DB.checkins.filter(function(x){return Number(x.id)!==id});DB.checkinLogs=DB.checkinLogs.filter(function(l){return Number(l.checkinId)!==id});toast('已删除');renderCheckins()});
   }});
   view.querySelectorAll('[data-plan]').forEach(function(el){el.onclick=function(){openPlanDetail(Number(el.dataset.plan))}});
-  var ckFold=document.getElementById('ckFold');
-  if(ckFold)ckFold.onclick=function(e){e.stopPropagation();state.ckFoldOpen=!state.ckFoldOpen;var b=document.getElementById('ckBody');if(b)b.classList.toggle('hidden',!state.ckFoldOpen);ckFold.classList.toggle('closed',!state.ckFoldOpen)};
-  var planFold=document.getElementById('planFold');
-  if(planFold)planFold.onclick=function(e){e.stopPropagation();state.planFoldOpen=!state.planFoldOpen;var b=document.getElementById('planBody');if(b)b.classList.toggle('hidden',!state.planFoldOpen);planFold.classList.toggle('closed',!state.planFoldOpen)};
   var archFold=document.getElementById('archFold');
   if(archFold)archFold.onclick=function(e){e.stopPropagation();state.archFoldOpen=!state.archFoldOpen;var b=document.getElementById('archBody');if(b)b.classList.toggle('hidden',!state.archFoldOpen);archFold.classList.toggle('closed',!state.archFoldOpen)};
 }
